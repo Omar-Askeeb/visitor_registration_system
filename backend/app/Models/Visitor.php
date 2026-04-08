@@ -1,0 +1,66 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class Visitor extends Model
+{
+    protected $fillable = [
+        'event_id',
+        'creator_id',
+        'formID',
+        'badgeID',
+        'onlineRegID',
+        'visitorName',
+        'midleName',
+        'surName',
+        'organisation',
+        'email',
+        'phone1',
+        'phone2',
+        'gender',
+        'nationality',
+        'resident',
+        'workfield',
+        'howexpo',
+        'print_count',
+        'modifier',
+        'modifyUnits',
+        'insertUnits',
+        'modifydate',
+        'modifyCount',
+        'is_verified',
+        'verified_by_id',
+        'verification_type',
+        'verification_notes',
+    ];
+
+    protected $casts = [
+        'modifydate'  => 'datetime',
+        'workfield'   => 'array',
+        'howexpo'     => 'array',
+        'is_verified' => 'boolean',
+    ];
+
+    public function event(): BelongsTo
+    {
+        return $this->belongsTo(Event::class);
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'creator_id');
+    }
+
+    public function modifiedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'modifier');
+    }
+
+    public function verifiedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'verified_by_id');
+    }
+}
