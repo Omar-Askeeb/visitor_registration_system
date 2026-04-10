@@ -8,6 +8,8 @@ use App\Http\Controllers\VisitorController;
 use App\Http\Controllers\UserController;
 
 // --- Public Auth ---
+use App\Http\Controllers\PrePrintHistoryController;
+
 Route::post('/login', [AuthController::class, 'login']);
 
 // --- Protected Routes ---
@@ -25,6 +27,10 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Everyone can view events and users list
+    Route::apiResource('scans', ScanController::class)->only(['index', 'store', 'show', 'destroy']);
+    
+    Route::get('/pre-print-history', [PrePrintHistoryController::class, 'index']);
+    Route::post('/pre-print-history', [PrePrintHistoryController::class, 'store']);
     Route::apiResource('events', EventController::class)->only(['index', 'show']);
     Route::get('/users', [UserController::class, 'index']);
 

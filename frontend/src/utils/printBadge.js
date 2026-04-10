@@ -4,7 +4,19 @@ export const openPrintWindow = (form, badgeID, eventName, printBarcode = true) =
   
   // Create hidden iframe
   const iframe = document.createElement('iframe');
-  iframe.style.display = 'none';
+  
+  // Browsers often block window.print() if the element is 'display: none'.
+  // We use off-screen positioning to keep it in the render tree but hidden.
+  Object.assign(iframe.style, {
+    position: 'fixed',
+    right: '-10000px',
+    top: '-10000px',
+    width: '1px',
+    height: '1px',
+    opacity: '0',
+    pointerEvents: 'none'
+  });
+  
   document.body.appendChild(iframe);
 
   let barcodeScript = '';
@@ -12,9 +24,11 @@ export const openPrintWindow = (form, badgeID, eventName, printBarcode = true) =
   let bodyOnload = 'window.print()';
   
   if (printBarcode && badgeID) {
-    barcodeScript = '<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3/dist/JsBarcode.all.min.js"><\/script>';
+    // Use local script for full offline support
+    barcodeScript = '<script src="/js/JsBarcode.all.min.js"><\/script>';
     barcodeHtml = `<svg id="bc"></svg>`;
-    bodyOnload = `JsBarcode('#bc','${badgeID}',{format:'CODE128',displayValue:true,width:1.8,height:50,lineColor:'#000'});setTimeout(()=>{window.print();},400)`;
+    // Increased timeout to 500ms to ensure the local library is ready
+    bodyOnload = `try { JsBarcode('#bc','${badgeID}',{format:'CODE128',displayValue:true,width:1.8,height:50,lineColor:'#000'}); } catch(e){ console.warn('Barcode failed, printing anyway'); } setTimeout(()=>{window.print();},500)`;
   }
 
   const doc = iframe.contentWindow.document;

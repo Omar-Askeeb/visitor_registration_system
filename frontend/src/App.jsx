@@ -13,6 +13,8 @@ import EventManagement from './pages/EventManagement';
 import Login from './pages/Login';
 import ActivityLogs from './pages/ActivityLogs';
 import AuditCorrection from './pages/AuditCorrection';
+import PrePrintBadges from './pages/PrePrintBadges';
+import PrePrintForms from './pages/PrePrintForms';
 
 function ProtectedRoute({ element, allowedRoles }) {
   const { user } = useAuth();
@@ -66,6 +68,8 @@ function App() {
             <Route path="/settings" element={<ProtectedRoute element={<Settings />} allowedRoles={['admin']} />} />
             <Route path="/sync" element={<ProtectedRoute element={<SyncRecords />} allowedRoles={['admin']} />} />
             <Route path="/logs" element={<ProtectedRoute element={<ActivityLogs />} allowedRoles={['admin']} />} />
+            <Route path="/pre-print" element={<ProtectedRoute element={<PrePrintBadges />} allowedRoles={['admin']} />} />
+            <Route path="/pre-print-forms" element={<ProtectedRoute element={<PrePrintForms />} allowedRoles={['admin']} />} />
             
             <Route path="/events" element={<ProtectedRoute element={<EventManagement />} allowedRoles={['admin', 'data_entry']} />} />
             <Route path="/registration" element={<ProtectedRoute element={<Registration />} allowedRoles={['admin', 'data_entry']} />} />
