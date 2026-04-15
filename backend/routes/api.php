@@ -9,6 +9,7 @@ use App\Http\Controllers\UserController;
 
 // --- Public Auth ---
 use App\Http\Controllers\PrePrintHistoryController;
+use App\Http\Controllers\SyncController;
 
 Route::post('/login', [AuthController::class, 'login']);
 
@@ -32,6 +33,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/pre-print-history', [PrePrintHistoryController::class, 'index']);
     Route::post('/pre-print-history', [PrePrintHistoryController::class, 'store']);
     Route::apiResource('events', EventController::class)->only(['index', 'show']);
+    Route::post('/sync/pulse', [SyncController::class, 'pulse']);
+    Route::post('/events/{event}/sync', [SyncController::class, 'sync']);
+    Route::get('/events/{event}/sync-logs', [SyncController::class, 'index']);
+    Route::get('/events/{event}/sync-status', [SyncController::class, 'status']);
     Route::get('/users', [UserController::class, 'index']);
 
     // --- Visitor routes ---

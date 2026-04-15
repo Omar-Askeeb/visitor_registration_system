@@ -175,12 +175,12 @@ const Dashboard = () => {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                        <div>
-                          <div className="text-2xl font-black text-slate-900 dark:text-white tabular-nums">{ev.total_attendance || 0}</div>
+                          <div className="text-2xl font-black text-slate-900 dark:text-white tabular-nums">{ev.synced_count || 0}</div>
                           <div className="text-[8px] font-black uppercase text-slate-500 tracking-tighter">Total Captured Logs</div>
                        </div>
                        <div className="border-l border-slate-200 dark:border-slate-800 pl-4">
                           <div className="text-2xl font-black text-emerald-500 tabular-nums">
-                            {ev.daily_stats?.[ev.daily_stats.length - 1]?.unique_count || 0}
+                            {ev.today_synced_count || 0}
                           </div>
                           <div className="text-[8px] font-black uppercase text-slate-500 tracking-tighter">Day Pulse (Live)</div>
                        </div>

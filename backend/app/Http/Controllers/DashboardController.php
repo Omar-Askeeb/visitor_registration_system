@@ -32,17 +32,26 @@ class DashboardController extends Controller
                 ->having(DB::raw('count(distinct DATE(timestamp))'), '>', 1)
                 ->count();
 
+            // Synced from API
+            $syncedCount = $event->visitors()->whereNotNull('onlineRegID')->count();
+            $todaySyncedCount = $event->visitors()
+                ->whereNotNull('onlineRegID')
+                ->whereDate('created_at', now()->toDateString())
+                ->count();
+
             return [
-                'id'                => $event->id,
-                'name'              => $event->name,
-                'registered_count'  => $event->visitors_count,
-                'target_visitors'   => $event->target_visitors,
-                'status'            => $event->status,
-                'start_date'        => $event->start_date,
-                'end_date'          => $event->end_date,
-                'daily_stats'       => $dailyStats,
-                'total_attendance'  => $totalAttendance,
-                'redundant_visits'  => $redundantCount,
+                'id'                 => $event->id,
+                'name'               => $event->name,
+                'registered_count'   => $event->visitors_count,
+                'synced_count'       => $syncedCount,
+                'today_synced_count' => $todaySyncedCount,
+                'target_visitors'    => $event->target_visitors,
+                'status'             => $event->status,
+                'start_date'         => $event->start_date,
+                'end_date'           => $event->end_date,
+                'daily_stats'        => $dailyStats,
+                'total_attendance'   => $totalAttendance,
+                'redundant_visits'   => $redundantCount,
             ];
         });
 

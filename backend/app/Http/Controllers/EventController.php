@@ -35,6 +35,11 @@ class EventController extends Controller
             'target_visitors'    => 'nullable|integer|min:0',
             'status'             => 'nullable|in:upcoming,active,completed',
             'notes'              => 'nullable|string',
+            'online_slug'        => 'nullable|string|max:255',
+            'sync_enabled'       => 'nullable|boolean',
+            'sync_url'           => 'nullable|string',
+            'sync_interval'      => 'nullable|integer|min:1',
+            'sync_countdown'     => 'nullable|integer|min:1',
             'workfield_options'  => 'nullable|array',
             'howexpo_options'    => 'nullable|array',
         ]);
@@ -78,6 +83,11 @@ class EventController extends Controller
             'target_visitors'    => 'nullable|integer|min:0',
             'status'             => 'nullable|in:upcoming,active,completed',
             'notes'              => 'nullable|string',
+            'online_slug'        => 'nullable|string|max:255',
+            'sync_enabled'       => 'nullable|boolean',
+            'sync_url'           => 'nullable|string',
+            'sync_interval'      => 'nullable|integer|min:1',
+            'sync_countdown'     => 'nullable|integer|min:1',
             'workfield_options'  => 'nullable|array',
             'howexpo_options'    => 'nullable|array',
         ]);

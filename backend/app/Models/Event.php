@@ -19,6 +19,11 @@ class Event extends Model
         'target_visitors',
         'status',
         'notes',
+        'online_slug',
+        'sync_enabled',
+        'sync_url',
+        'sync_interval',
+        'sync_countdown',
         'workfield_options',
         'howexpo_options',
     ];
@@ -26,9 +31,15 @@ class Event extends Model
     protected $casts = [
         'start_date'        => 'date',
         'end_date'          => 'date',
+        'sync_enabled'      => 'boolean',
         'workfield_options' => 'array',
         'howexpo_options'   => 'array',
     ];
+
+    public function syncLogs(): HasMany
+    {
+        return $this->hasMany(SyncLog::class);
+    }
 
     public function visitors(): HasMany
     {

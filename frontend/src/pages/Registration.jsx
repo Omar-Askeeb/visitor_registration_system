@@ -170,6 +170,7 @@ const RegistrationForm = ({ event, onBack }) => {
 
   /* Saving/feedback */
   const [saving, setSaving]             = useState(false);
+  const [syncing, setSyncing]           = useState(false);
   const [toast, setToast]               = useState(null);
 
   const [searchParams] = useSearchParams();
@@ -196,6 +197,27 @@ const RegistrationForm = ({ event, onBack }) => {
          .catch(e => console.error(e));
     }
   }, [searchParams, event.id]);
+
+  const handleSync = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      const r = await fetch(`${API}/events/${event.id}/sync`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+      });
+      const d = await r.json();
+      if (r.ok) {
+        notify(`تمت المزامنة بنجاح: تم إضافة ${d.added} زائر جديد`);
+      } else {
+        throw new Error(d.message || d.error || 'فشل المزامنة');
+      }
+    } catch (err) {
+      notify(err.message, 'error');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   /* Field refs for Enter navigation */
   const refs = {
@@ -493,7 +515,19 @@ const RegistrationForm = ({ event, onBack }) => {
             <span>Back to Events</span>
           </button>
           <div className="bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl p-3">
-            <div className="text-[9px] text-cyan-100 font-black uppercase tracking-widest mb-0.5">Active Event</div>
+            <div className="flex items-center justify-between mb-0.5">
+              <div className="text-[9px] text-cyan-100 font-black uppercase tracking-widest">Active Event</div>
+              {event.online_slug && (
+                <button 
+                  onClick={handleSync}
+                  disabled={syncing}
+                  className="text-cyan-100 hover:text-white transition-colors disabled:opacity-50"
+                  title="المزامنة مع الرابط الخارجي"
+                >
+                  <RefreshCw className={`h-3 w-3 ${syncing ? 'animate-spin' : ''}`} />
+                </button>
+              )}
+            </div>
             <div className="text-white font-black text-sm leading-tight">{event.name}</div>
             {event.location && <div className="text-cyan-200 text-[10px] mt-0.5">{event.location}</div>}
           </div>

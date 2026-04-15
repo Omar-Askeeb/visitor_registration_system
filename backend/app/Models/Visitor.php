@@ -35,6 +35,8 @@ class Visitor extends Model
         'verified_by_id',
         'verification_type',
         'verification_notes',
+        'online_source',
+        'online_created_at',
     ];
 
     protected $casts = [

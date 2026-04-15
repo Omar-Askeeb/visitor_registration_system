@@ -17,6 +17,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Calendar,
+  RefreshCcw,
+  Timer,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -41,6 +43,11 @@ const EMPTY_FORM = {
   target_visitors: '',
   status: 'upcoming',
   notes: '',
+  online_slug: '',
+  sync_enabled: false,
+  sync_url: '',
+  sync_interval: 1,
+  sync_countdown: 120,
   workfield_options: ['العمارة', 'مواد البناء', 'الصناديق والمؤسسات المالية', 'ديكور داخلي', 'أعمال ميكانيكية', 'عقارات'],
   howexpo_options: ['البريد الإلكتروني', 'الفيسبوك', 'تويتر', 'الانستقرام', 'الرسائل القصيرة / وتس اب', 'محركات البحث', 'التلفزيون / الراديو'],
 };
@@ -153,8 +160,11 @@ const EventModal = ({ event, onClose, onSave }) => {
 
   // Stable handler — won't change between renders
   const handle = useCallback((e) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setForm((prev) => ({ 
+      ...prev, 
+      [name]: type === 'checkbox' ? checked : value 
+    }));
   }, []);
 
   const submit = async (e) => {
@@ -300,6 +310,56 @@ const EventModal = ({ event, onClose, onSave }) => {
                 hint="Used for online pre-registered visitors. Generated format: ON-0001"
                 value={form.online_reg_prefix} onChange={handle}
               />
+            </div>
+          </div>
+
+          <div className="border-t border-slate-100 dark:border-slate-800" />
+
+          {/* ── Synchronization Engine ── */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-600 dark:text-amber-500">
+                Synchronization Settings
+              </div>
+              <label className="flex items-center cursor-pointer group">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mr-3 group-hover:text-slate-300 transition-colors">Enabled</span>
+                <div className="relative">
+                  <input 
+                    type="checkbox" 
+                    name="sync_enabled" 
+                    checked={form.sync_enabled} 
+                    onChange={handle}
+                    className="sr-only" 
+                  />
+                  <div className={`block w-10 h-6 rounded-full transition-colors ${form.sync_enabled ? 'bg-amber-500' : 'bg-slate-700'}`}></div>
+                  <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${form.sync_enabled ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                </div>
+              </label>
+            </div>
+            
+            <div className="grid grid-cols-1 gap-4">
+              <Field
+                label="Online Slug" name="online_slug" icon={Globe} placeholder="e.g. libya-build-2026"
+                hint="External slug used for API identification."
+                value={form.online_slug} onChange={handle}
+              />
+              <Field
+                label="Sync API URL" name="sync_url" icon={RefreshCcw} placeholder="https://eventxcrm.com/api/get-visitors/..."
+                hint="Full API endpoint for visitor synchronization."
+                value={form.sync_url} onChange={handle}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <Field
+                  label="Sync Frequency (min)" name="sync_interval" type="number" icon={Clock} placeholder="e.g. 1"
+                  hint="How often to trigger background sync."
+                  value={form.sync_interval} onChange={handle}
+                />
+                <Field
+                  label="Dashboard Timer (sec)" name="sync_countdown" type="number" icon={Timer} placeholder="e.g. 120"
+                  hint="Seconds for the UI countdown."
+                  value={form.sync_countdown} onChange={handle}
+                />
+              </div>
             </div>
           </div>
 
