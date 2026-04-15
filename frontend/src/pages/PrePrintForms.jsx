@@ -205,7 +205,9 @@ const PrePrintForms = () => {
         isFirstPage = false;
       }
 
-      doc.save(`PrePrintForm_${histConfig.event?.name || 'Event'}_${chunkStart}-${chunkEnd}.pdf`);
+      const baseName = `PrePrintForm_${histConfig.event?.name || 'Event'}_${chunkStart}-${chunkEnd}`;
+      const safeName = baseName.replace(/[^a-z0-9]/gi, '_').replace(/_+/g, '_');
+      doc.save(`${safeName}.pdf`);
     } catch (err) {
       console.error(err);
       alert("Failed to generate PDF");

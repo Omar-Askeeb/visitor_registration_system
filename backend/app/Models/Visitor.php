@@ -63,4 +63,16 @@ class Visitor extends Model
     {
         return $this->belongsTo(User::class, 'verified_by_id');
     }
+
+    /**
+     * Encode the given value as JSON.
+     *
+     * @param  mixed  $value
+     * @param  int  $flags
+     * @return string
+     */
+    protected function asJson($value, $flags = 0)
+    {
+        return json_encode($value, $flags | JSON_UNESCAPED_UNICODE);
+    }
 }

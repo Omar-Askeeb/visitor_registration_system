@@ -41,6 +41,8 @@ const Sidebar = ({ isOpen, onClose }) => {
     { icon: ShieldCheck,     label: 'Audit Correction', path: '/audit-correction', color: 'cyan', roles: ['admin', 'auditor'] },
     { icon: Printer,         label: 'Pre-Print Badges', path: '/pre-print', color: 'indigo',  roles: ['admin'] },
     { icon: FileImage,       label: 'Pre-Print Forms', path: '/pre-print-forms', color: 'pink',  roles: ['admin'] },
+    { icon: RefreshCcw,      label: 'Sync Records',  path: '/sync',      color: 'amber',   roles: ['admin'] },
+    { icon: ShieldCheck,     label: 'Activity Logs', path: '/logs',      color: 'violet', roles: ['admin'] },
     { icon: Settings,        label: 'Settings',      path: '/settings',  color: 'slate',  roles: ['admin'] },
   ].filter(item => item.roles.includes(user.role));
 

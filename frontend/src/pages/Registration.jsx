@@ -174,6 +174,18 @@ const RegistrationForm = ({ event, onBack }) => {
 
   const [searchParams] = useSearchParams();
 
+  /* Load badge preference safely */
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('badge_pref_preprinted');
+      if (saved !== null) {
+        setPrePrinted(saved === 'true');
+      }
+    } catch (e) {
+      console.warn('Could not load badge preference from localStorage', e);
+    }
+  }, []);
+
   // Load record if edit_id is in URL
   useEffect(() => {
     const editId = searchParams.get('edit_id');
@@ -227,10 +239,25 @@ const RegistrationForm = ({ event, onBack }) => {
     } catch { setAutoBadgeID(''); }
   }, [event.id]);
 
-  /* Generic field change handler (stable, no closure leak) */
+  /* Generic field change handler with robust restrictions */
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    if (value === undefined || value === null) return;
+    
+    let finalValue = value;
+
+    // Restrictions: Names (Arabic/English characters and space only)
+    if (['visitorName', 'midleName', 'surName'].includes(name)) {
+      // Filter out everything except letters and spaces
+      // \u0621-\u064A covers most common Arabic characters
+      finalValue = value.replace(/[^a-zA-Z\u0621-\u064A\s]/g, '');
+    }
+    // Restrictions: Phone (Numbers and + only)
+    else if (['phone1', 'phone2'].includes(name)) {
+      finalValue = value.replace(/[^\d+]/g, '');
+    }
+
+    setForm(prev => ({ ...prev, [name]: finalValue }));
   }, []);
 
   /* Toggle checkbox arrays */
@@ -332,7 +359,13 @@ const RegistrationForm = ({ event, onBack }) => {
     setForm({ ...EMPTY_FORM });
     setFieldsEnabled(false);
     setFormIDStatus(null);
-    setPrePrinted(false);
+    
+    // Respect badge preference from localStorage instead of resetting to false
+    try {
+      const saved = localStorage.getItem('badge_pref_preprinted');
+      if (saved !== null) setPrePrinted(saved === 'true');
+    } catch (e) {}
+
     setAutoBadgeID('');
     setManualBadge('');
     setEditingId(null);
@@ -663,11 +696,29 @@ const RegistrationForm = ({ event, onBack }) => {
             <div className={`flex items-center justify-end space-x-4 space-x-reverse mb-4 ${editingId ? 'opacity-50 pointer-events-none' : ''}`}>
               <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
                 <span className={`text-xs font-bold ${!prePrinted ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-400'}`}>توليد تلقائي</span>
-                <input type="radio" checked={!prePrinted} onChange={() => setPrePrinted(false)} className="accent-cyan-500" disabled={!!editingId} />
+                <input 
+                  type="radio" 
+                  checked={!prePrinted} 
+                  onChange={() => {
+                    setPrePrinted(false);
+                    try { localStorage.setItem('badge_pref_preprinted', 'false'); } catch(e) {}
+                  }} 
+                  className="accent-cyan-500" 
+                  disabled={!!editingId} 
+                />
               </label>
               <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
                 <span className={`text-xs font-bold ${prePrinted ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400'}`}>بادج مطبوع مسبقاً</span>
-                <input type="radio" checked={prePrinted} onChange={() => setPrePrinted(true)} className="accent-purple-500" disabled={!!editingId} />
+                <input 
+                  type="radio" 
+                  checked={prePrinted} 
+                  onChange={() => {
+                    setPrePrinted(true);
+                    try { localStorage.setItem('badge_pref_preprinted', 'true'); } catch(e) {}
+                  }} 
+                  className="accent-purple-500" 
+                  disabled={!!editingId} 
+                />
               </label>
             </div>
 

@@ -43,8 +43,15 @@ class Event extends Model
     /**
      * Get visitor count for this event.
      */
-    public function getVisitorCountAttribute(): int
+    /**
+     * Encode the given value as JSON.
+     *
+     * @param  mixed  $value
+     * @param  int  $flags
+     * @return string
+     */
+    protected function asJson($value, $flags = 0)
     {
-        return $this->visitors()->count();
+        return json_encode($value, $flags | JSON_UNESCAPED_UNICODE);
     }
 }
