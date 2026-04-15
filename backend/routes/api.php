@@ -10,6 +10,7 @@ use App\Http\Controllers\UserController;
 // --- Public Auth ---
 use App\Http\Controllers\PrePrintHistoryController;
 use App\Http\Controllers\SyncController;
+use App\Http\Controllers\TrainingRecordController;
 
 Route::post('/login', [AuthController::class, 'login']);
 
@@ -52,6 +53,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Admin & Data Entry
         Route::middleware('role:admin,data_entry')->group(function () {
             Route::post('/', [VisitorController::class, 'store']);
+            Route::post('/training-records', [TrainingRecordController::class, 'store']);
             Route::get('/next-badge-id', [VisitorController::class, 'nextBadgeId']);
         });
 

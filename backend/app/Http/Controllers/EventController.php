@@ -42,6 +42,7 @@ class EventController extends Controller
             'sync_countdown'     => 'nullable|integer|min:1',
             'workfield_options'  => 'nullable|array',
             'howexpo_options'    => 'nullable|array',
+            'is_training'        => 'nullable|boolean',
         ]);
 
         $event = Event::create($validated);
@@ -90,6 +91,7 @@ class EventController extends Controller
             'sync_countdown'     => 'nullable|integer|min:1',
             'workfield_options'  => 'nullable|array',
             'howexpo_options'    => 'nullable|array',
+            'is_training'        => 'nullable|boolean',
         ]);
 
         $event->update($validated);

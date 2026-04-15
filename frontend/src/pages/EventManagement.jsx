@@ -50,6 +50,7 @@ const EMPTY_FORM = {
   sync_countdown: 120,
   workfield_options: ['العمارة', 'مواد البناء', 'الصناديق والمؤسسات المالية', 'ديكور داخلي', 'أعمال ميكانيكية', 'عقارات'],
   howexpo_options: ['البريد الإلكتروني', 'الفيسبوك', 'تويتر', 'الانستقرام', 'الرسائل القصيرة / وتس اب', 'محركات البحث', 'التلفزيون / الراديو'],
+  is_training: false,
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -365,6 +366,35 @@ const EventModal = ({ event, onClose, onSave }) => {
 
           <div className="border-t border-slate-100 dark:border-slate-800" />
 
+          {/* ── Training Mode ── */}
+          <div>
+            <div className="flex items-center justify-between p-4 bg-purple-500/5 border border-purple-500/10 rounded-2xl">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.25em] text-purple-600 dark:text-purple-400 mb-1">
+                  Training Mode
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Enables practice sessions for data entry. Isolation from real data.
+                </p>
+              </div>
+              <label className="flex items-center cursor-pointer group">
+                <div className="relative">
+                  <input 
+                    type="checkbox" 
+                    name="is_training" 
+                    checked={form.is_training} 
+                    onChange={handle}
+                    className="sr-only" 
+                  />
+                  <div className={`block w-10 h-6 rounded-full transition-colors ${form.is_training ? 'bg-purple-500' : 'bg-slate-700'}`}></div>
+                  <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${form.is_training ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div className="border-t border-slate-100 dark:border-slate-800" />
+
           {/* ── Dynamic Registration Options ── */}
           <div className="space-y-6">
             <div className="text-[10px] font-black uppercase tracking-[0.25em] text-emerald-600 dark:text-emerald-500">
@@ -493,6 +523,11 @@ const EventCard = ({ event, onEdit, onDelete, isReadOnly }) => {
         <span className={`shrink-0 inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${STATUS_STYLES[event.status] || STATUS_STYLES.upcoming}`}>
           {event.status}
         </span>
+        {event.is_training && (
+          <span className="shrink-0 inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+            🎓 Training
+          </span>
+        )}
       </div>
 
       {/* Dates */}

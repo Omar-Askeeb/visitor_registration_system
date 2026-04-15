@@ -18,6 +18,12 @@ class UserController extends Controller
             'visitorsModified as visitors_updated_count',
             'fixedRecords as fixed_records_count',
             'verifiedRecords as verified_records_count',
+        ])
+        ->addSelect([
+            'avg_fill_time'  => DB::table('training_records')->whereColumn('user_id', 'users.id')->selectRaw('AVG(fill_duration)'),
+            'best_fill_time' => DB::table('training_records')->whereColumn('user_id', 'users.id')->selectRaw('MIN(fill_duration)'),
+            'worst_fill_time'=> DB::table('training_records')->whereColumn('user_id', 'users.id')->selectRaw('MAX(fill_duration)'),
+            'training_count' => DB::table('training_records')->whereColumn('user_id', 'users.id')->selectRaw('COUNT(*)'),
         ])->get();
 
         return response()->json($users);

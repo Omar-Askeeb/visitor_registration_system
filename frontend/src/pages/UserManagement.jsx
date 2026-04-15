@@ -302,7 +302,7 @@ const UserManagement = () => {
       <div className="flex flex-wrap gap-3 mb-8">
         {[
           { label: 'Total Users',  value: users.length,        color: 'slate' },
-          { label: 'Admins',       value: counts.admin,        color: 'cyan' },
+          { label: 'Training Sessions', value: users.reduce((acc, u) => acc + (parseInt(u.training_count) || 0), 0), color: 'purple' },
           { label: 'Data Entry',   value: counts.data_entry,   color: 'emerald' },
           { label: 'Auditors',     value: counts.auditor,      color: 'purple' },
         ].map(s => (
@@ -353,6 +353,7 @@ const UserManagement = () => {
                 <th className="px-6 py-5">Name / Phone</th>
                 <th className="px-6 py-5">Email</th>
                 <th className="px-6 py-5">Role</th>
+                <th className="px-6 py-5">Practice Score</th>
                 <th className="px-6 py-5">Performance</th>
                 <th className="px-6 py-5">Joined</th>
                 <th className="px-6 py-5 text-right">Actions</th>
@@ -376,6 +377,28 @@ const UserManagement = () => {
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-500 dark:text-slate-400 font-mono">{u.email}</td>
                   <td className="px-6 py-4"><RoleBadge role={u.role} /></td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-4">
+                       <div className="flex flex-col">
+                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">⏱️ Avg</span>
+                          <span className="text-sm font-black text-slate-900 dark:text-white">
+                            {u.avg_fill_time ? `${Math.round(u.avg_fill_time)}s` : '—'}
+                          </span>
+                       </div>
+                       <div className="flex flex-col border-r border-slate-100 dark:border-slate-800/50 pr-3">
+                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">⚡ Best</span>
+                          <span className="text-sm font-black text-emerald-500">
+                            {u.best_fill_time ? `${Math.round(u.best_fill_time)}s` : '—'}
+                          </span>
+                       </div>
+                       <div className="flex flex-col border-r border-slate-100 dark:border-slate-800/50 pr-3">
+                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">🐢 Slowest</span>
+                          <span className="text-sm font-black text-amber-500">
+                            {u.worst_fill_time ? `${Math.round(u.worst_fill_time)}s` : '—'}
+                          </span>
+                       </div>
+                    </div>
+                  </td>
                   <td className="px-6 py-4 text-xs">
                     <div className="flex items-center gap-4">
                       {/* Records Created (Data Entry Metric) */}
@@ -385,7 +408,7 @@ const UserManagement = () => {
                           <span className="font-black text-slate-900 dark:text-white leading-none">{u.visitors_created_count || 0}</span>
                         </div>
                       )}
-
+ 
                       {/* Records Verified (Auditor Metric) */}
                       {(u.role === 'admin' || u.role === 'auditor') && (
                          <div className="flex flex-col border-l border-slate-100 dark:border-slate-800/50 pl-3">
@@ -393,12 +416,15 @@ const UserManagement = () => {
                            <span className="font-black text-cyan-600 dark:text-cyan-400 leading-none">{u.verified_records_count || 0}</span>
                          </div>
                       )}
-
+ 
                       {/* Quality Score (Accuracy) */}
-                      {(u.role === 'admin' || u.role === 'data_entry') && u.visitors_created_count > 0 && (
+                      {(u.role === 'admin' || u.role === 'data_entry') && (
                         <div className="flex flex-col border-l border-slate-100 dark:border-slate-800/50 pl-3">
                           <span className="text-slate-400 font-bold uppercase text-[8px] tracking-tighter">Accuracy</span>
                           {(() => {
+                            if (!u.visitors_created_count || u.visitors_created_count === 0) {
+                              return <div className="font-black leading-none text-emerald-500">100%</div>;
+                            }
                             const accuracy = Math.max(0, Math.round(((u.visitors_created_count - (u.fixed_records_count || 0)) / u.visitors_created_count) * 100));
                             const color = accuracy > 95 ? 'emerald' : accuracy > 85 ? 'amber' : 'red';
                             return (

@@ -172,6 +172,7 @@ const RegistrationForm = ({ event, onBack }) => {
   const [saving, setSaving]             = useState(false);
   const [syncing, setSyncing]           = useState(false);
   const [toast, setToast]               = useState(null);
+  const [startTime, setStartTime]       = useState(null);
 
   const [searchParams] = useSearchParams();
 
@@ -315,11 +316,12 @@ const RegistrationForm = ({ event, onBack }) => {
         { headers: { Accept: 'application/json' } }
       );
       const { exists } = await r.json();
-      if (exists) {
+      if (exists && !event.is_training) {
         setFormIDStatus('duplicate');
       } else {
         setFormIDStatus('ok');
         setFieldsEnabled(true);
+        setStartTime(Date.now()); // Start timer
         setTimeout(() => refs.visitorName.current?.focus(), 60);
       }
     } catch {
@@ -391,6 +393,7 @@ const RegistrationForm = ({ event, onBack }) => {
     setAutoBadgeID('');
     setManualBadge('');
     setEditingId(null);
+    setStartTime(null);
     setTimeout(() => refs.formID.current?.focus(), 50);
   }, []);
 
@@ -423,12 +426,16 @@ const RegistrationForm = ({ event, onBack }) => {
         formID: finalFid, 
         badgeID: finalBadgeID || undefined,
         print_count: nextPrintCount,
+        fill_duration: startTime ? (Date.now() - startTime) / 1000 : null,
       };
       
       let url, method;
       if (editingId) {
         url    = `${API}/events/${event.id}/visitors/${editingId}`;
         method = 'PUT';
+      } else if (event.is_training) {
+        url    = `${API}/events/${event.id}/visitors/training-records`;
+        method = 'POST';
       } else {
         url    = `${API}/events/${event.id}/visitors`;
         method = 'POST';
@@ -595,11 +602,19 @@ const RegistrationForm = ({ event, onBack }) => {
           {/* Form title */}
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">نموذج الزائر</h2>
-            {editingId && (
-              <span className="text-[10px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-3 py-1 rounded-full">
-                وضع التعديل
-              </span>
-            )}
+            <div className="flex items-center space-x-2 space-x-reverse">
+              {event.is_training && (
+                <span className="flex items-center space-x-1 px-3 py-1 bg-purple-600 text-white rounded-full text-[10px] font-black uppercase animate-pulse">
+                  <RefreshCw className="h-3 w-3" />
+                  <span>وضع التدريب نشط</span>
+                </span>
+              )}
+              {editingId && (
+                <span className="text-[10px] font-black uppercase tracking-widest bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-3 py-1 rounded-full">
+                  وضع التعديل
+                </span>
+              )}
+            </div>
           </div>
 
           {/* ── رقم النموذج ── */}

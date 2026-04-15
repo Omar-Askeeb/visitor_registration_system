@@ -26,6 +26,7 @@ class Event extends Model
         'sync_countdown',
         'workfield_options',
         'howexpo_options',
+        'is_training',
     ];
 
     protected $casts = [
@@ -34,6 +35,7 @@ class Event extends Model
         'sync_enabled'      => 'boolean',
         'workfield_options' => 'array',
         'howexpo_options'   => 'array',
+        'is_training'       => 'boolean',
     ];
 
     public function syncLogs(): HasMany
