@@ -103,7 +103,8 @@ class VisitorController extends Controller
                       ->orWhere('phone1',      'like', "%{$q}%")
                       ->orWhere('phone2',      'like', "%{$q}%")
                       ->orWhere('badgeID',     'like', "%{$q}%")
-                      ->orWhere('formID',      'like', "%{$q}%");
+                      ->orWhere('formID',      'like', "%{$q}%")
+                      ->orWhere('onlineRegID', 'like', "%{$q}%");
             })
             ->with(['creator:id,name', 'modifiedBy:id,name', 'verifiedBy:id,name'])
             ->limit(20)

@@ -43,6 +43,7 @@ class EventController extends Controller
             'workfield_options'  => 'nullable|array',
             'howexpo_options'    => 'nullable|array',
             'is_training'        => 'nullable|boolean',
+            'badge_layout'       => 'nullable|array',
         ]);
 
         $event = Event::create($validated);
@@ -92,6 +93,7 @@ class EventController extends Controller
             'workfield_options'  => 'nullable|array',
             'howexpo_options'    => 'nullable|array',
             'is_training'        => 'nullable|boolean',
+            'badge_layout'       => 'nullable|array',
         ]);
 
         $event->update($validated);

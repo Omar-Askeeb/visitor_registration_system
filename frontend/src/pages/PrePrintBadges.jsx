@@ -29,6 +29,7 @@ const PrePrintBadges = () => {
     startCode: '1000',
     endCode: '1100',
     batchSize: '100',
+    iterativeDigits: '5',
     barcodeWidth: '1.8',
     barcodeHeight: '50',
     barcodeY: '6.5',
@@ -91,6 +92,7 @@ const PrePrintBadges = () => {
         start_code: start,
         end_code: end,
         batch_size: size,
+        iterative_digits: form.iterativeDigits,
         barcode_width: form.barcodeWidth,
         barcode_height: form.barcodeHeight,
         barcode_x: form.barcodeX,
@@ -154,7 +156,8 @@ const PrePrintBadges = () => {
       let isFirstPage = true;
 
       for (let i = chunkStart; i <= chunkEnd; i++) {
-        const formattedCode = `${eventPrefix}${String(i).padStart(4, '0')}`;
+        const padding = parseInt(histConfig.iterative_digits) || 5;
+        const formattedCode = `${eventPrefix}${String(i).padStart(padding, '0')}`;
         
         JsBarcode(canvas, formattedCode, {
           format: 'CODE128',
@@ -188,6 +191,26 @@ const PrePrintBadges = () => {
     } catch (err) {
       console.error(err);
       alert("Failed to generate PDF");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+  
+  const handleDownloadAll = async (hist) => {
+    // Disable other actions while processing
+    setProcessingId('all');
+    
+    const chunks = getChunksFromHistory(hist);
+    try {
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        await generatePDF(chunk.start, chunk.end, `all-${i}`, hist);
+        // Add a small delay between downloads to prevent browser blocking
+        await new Promise(resolve => setTimeout(resolve, 800));
+      }
+    } catch (err) {
+      console.error(err);
+      alert("An error occurred during bulk download.");
     } finally {
       setProcessingId(null);
     }
@@ -238,9 +261,15 @@ const PrePrintBadges = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Pages Per File Chunk</label>
-                <input type="number" required value={form.batchSize} onChange={e => setForm({...form, batchSize: e.target.value})} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40" />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Pages Per File Chunk</label>
+                  <input type="number" required value={form.batchSize} onChange={e => setForm({...form, batchSize: e.target.value})} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Iterative Digits (Padding)</label>
+                  <input type="number" required value={form.iterativeDigits} onChange={e => setForm({...form, iterativeDigits: e.target.value})} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40" />
+                </div>
               </div>
 
               <div className="p-4 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700/60 rounded-2xl space-y-4">
@@ -302,9 +331,19 @@ const PrePrintBadges = () => {
                     <FileDown className="h-4 w-4 text-cyan-500" />
                     <span>Download Sequence</span>
                   </h3>
-                  <div className="text-xs text-slate-500">{activeHistory.event?.name} | {activeHistory.start_code} to {activeHistory.end_code}</div>
+                  <div className="text-xs text-slate-500">{activeHistory.event?.name} | {activeHistory.start_code} to {activeHistory.end_code} | Chunk Size: {activeHistory.batch_size}</div>
                 </div>
-                <button onClick={() => setActiveHistory(null)} className="text-xs uppercase font-bold text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">Close</button>
+                <div className="flex items-center space-x-3">
+                  <button 
+                    onClick={() => handleDownloadAll(activeHistory)}
+                    disabled={processingId !== null}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 bg-cyan-500 text-white rounded-lg text-xs font-bold hover:bg-cyan-600 transition-colors disabled:opacity-50"
+                  >
+                    {processingId === 'all' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+                    <span>{processingId === 'all' ? 'Downloading All...' : 'Download All'}</span>
+                  </button>
+                  <button onClick={() => setActiveHistory(null)} className="text-xs uppercase font-bold text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">Close</button>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto space-y-3 pr-2">
@@ -352,10 +391,11 @@ const PrePrintBadges = () => {
                            <span className="text-sm font-black text-slate-900 dark:text-white truncate">{hist.event?.name}</span>
                            <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full">{hist.event?.badge_id_prefix || '#'}</span>
                          </div>
-                         <div className="text-xs text-slate-500 flex items-center space-x-4">
-                            <span>Codes: <b className="text-slate-700 dark:text-slate-300">{hist.start_code} - {hist.end_code}</b></span>
-                            <span>Chunk: <b className="text-slate-700 dark:text-slate-300">{hist.batch_size}</b></span>
-                         </div>
+                          <div className="text-xs text-slate-500 flex flex-wrap gap-x-4 gap-y-1">
+                             <span>Codes: <b className="text-slate-700 dark:text-slate-300">{hist.start_code} - {hist.end_code}</b></span>
+                             <span>Digits: <b className="text-slate-700 dark:text-slate-300">{hist.iterative_digits || 5}</b></span>
+                             <span>Chunk: <b className="text-slate-700 dark:text-slate-300">{hist.batch_size}</b></span>
+                          </div>
                        </div>
                        <div className="shrink-0 text-right">
                          <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">{new Date(hist.created_at).toLocaleDateString()}</div>

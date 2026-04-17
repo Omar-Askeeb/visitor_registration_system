@@ -26,6 +26,7 @@ class PrePrintHistoryController extends Controller
             'start_code' => 'required|integer|min:1',
             'end_code' => 'required|integer|gte:start_code',
             'batch_size' => 'required|integer|min:1',
+            'iterative_digits' => 'nullable|integer|min:1|max:10',
             'barcode_width' => 'nullable|string',
             'barcode_height' => 'nullable|string',
             'barcode_x' => 'nullable|string',

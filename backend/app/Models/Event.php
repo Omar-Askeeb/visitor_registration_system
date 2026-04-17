@@ -27,6 +27,7 @@ class Event extends Model
         'workfield_options',
         'howexpo_options',
         'is_training',
+        'badge_layout',
     ];
 
     protected $casts = [
@@ -36,6 +37,7 @@ class Event extends Model
         'workfield_options' => 'array',
         'howexpo_options'   => 'array',
         'is_training'       => 'boolean',
+        'badge_layout'      => 'array',
     ];
 
     public function syncLogs(): HasMany

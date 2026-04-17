@@ -11,6 +11,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\PrePrintHistoryController;
 use App\Http\Controllers\SyncController;
 use App\Http\Controllers\TrainingRecordController;
+use App\Http\Controllers\CountryController;
 
 Route::post('/login', [AuthController::class, 'login']);
 
@@ -39,6 +40,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/events/{event}/sync-logs', [SyncController::class, 'index']);
     Route::get('/events/{event}/sync-status', [SyncController::class, 'status']);
     Route::get('/users', [UserController::class, 'index']);
+    Route::get('/countries', [CountryController::class, 'index']);
 
     // --- Visitor routes ---
     Route::prefix('events/{event}/visitors')->group(function () {

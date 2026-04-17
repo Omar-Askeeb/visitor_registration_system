@@ -11,18 +11,31 @@ const API = import.meta.env.VITE_API_URL || '/api';
 
 /* ─────── Static data ─────── */
 const GENDERS    = ['ذكر', 'أنثى'];
-const COUNTRIES  = [
-  'ليبيا','مصر','تونس','الجزائر','المغرب','السودان','موريتانيا',
-  'الأردن','السعودية','الإمارات','الكويت','قطر','البحرين','عُمان',
-  'العراق','سوريا','لبنان','اليمن','الصومال','جيبوتي','تركيا','إيران',
-  'باكستان','الهند','الصين','الولايات المتحدة','المملكة المتحدة',
-  'ألمانيا','فرنسا','إيطاليا','إسبانيا','روسيا','أخرى',
-];
+const COUNTRIES  = ['ليبيا']; // Initial value, will be updated by fetch
 const EMPTY_FORM = {
   formID:'', visitorName:'', midleName:'', surName:'',
   organisation:'', email:'', phone1:'', phone2:'',
   gender:'ذكر', nationality:'ليبيا', resident:'ليبيا',
   workfield:[], howexpo:[], print_count:0,
+};
+
+const DEFAULT_LAYOUT = {
+  pageWidth: 21,
+  pageHeight: 27,
+  name: { y: 6.5, x: '', show: true },
+  barcode: { y: 9.5, x: '', show: true, widthFactor: 1.8, height: 50 },
+  qrCode: { y: 13.5, x: '', show: true, size: 30, template: '{onlineRegID}' }
+};
+
+const mergeLayout = (saved) => {
+  if (!saved || typeof saved !== 'object') return DEFAULT_LAYOUT;
+  return {
+    pageWidth:  saved.pageWidth  || DEFAULT_LAYOUT.pageWidth,
+    pageHeight: saved.pageHeight || DEFAULT_LAYOUT.pageHeight,
+    name:       { ...DEFAULT_LAYOUT.name,    ...(saved.name    || {}) },
+    barcode:    { ...DEFAULT_LAYOUT.barcode, ...(saved.barcode || {}) },
+    qrCode:     { ...DEFAULT_LAYOUT.qrCode,  ...(saved.qrCode  || {}) },
+  };
 };
 
 /* ─────── Print badge silently using hidden iframe ─────── */
@@ -151,7 +164,8 @@ const ArabicSelect = ({ label, name, value, onChange, onKeyDown, disabled, input
 );
 
 /* ——————————————————————————————————————————————————————— */
-const RegistrationForm = ({ event, onBack }) => {
+const RegistrationForm = ({ event, onBack, countryOptions = [] }) => {
+  const dynamicCountries = countryOptions.length > 0 ? countryOptions : COUNTRIES;
   /* Form state */
   const [form, setForm]                   = useState({ ...EMPTY_FORM });
   const [fieldsEnabled, setFieldsEnabled] = useState(false);
@@ -474,7 +488,7 @@ const RegistrationForm = ({ event, onBack }) => {
       } else {
          printBarcode = true;
       }
-      openPrintWindow(form, res.badgeID, event.name, printBarcode);
+      openPrintWindow(res.saved, res.badgeID, event.name, printBarcode, mergeLayout(event.badge_layout));
       handleClear();
     }
   };
@@ -487,7 +501,7 @@ const RegistrationForm = ({ event, onBack }) => {
       } else {
          printBarcode = true;
       }
-      openPrintWindow(form, res.badgeID, event.name, printBarcode);
+      openPrintWindow(res.saved, res.badgeID, event.name, printBarcode, mergeLayout(event.badge_layout));
       handleClear();
     }
   };
@@ -550,7 +564,7 @@ const RegistrationForm = ({ event, onBack }) => {
             <input
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="اكتب الاسم أو الهاتف أو البريد..."
+              placeholder="ابحث بالاسم، الهاتف، أو رقم التسجيل الأونلاين..."
               dir="rtl"
               className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pr-9 pl-3 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/40 transition-all text-right"
             />
@@ -687,10 +701,10 @@ const RegistrationForm = ({ event, onBack }) => {
               inputRef={refs.gender} disabled={inputDisabled} options={GENDERS} />
             <ArabicSelect label="الجنسية" name="nationality" value={form.nationality}
               onChange={handleChange} onKeyDown={makeKeyDown('nationality')}
-              inputRef={refs.nationality} disabled={inputDisabled} options={COUNTRIES} />
+              inputRef={refs.nationality} disabled={inputDisabled} options={dynamicCountries} />
             <ArabicSelect label="بلد الإقامة" name="resident" value={form.resident}
               onChange={handleChange} onKeyDown={makeKeyDown('resident')}
-              inputRef={refs.resident} disabled={inputDisabled} options={COUNTRIES} />
+              inputRef={refs.resident} disabled={inputDisabled} options={dynamicCountries} />
           </div>
 
           {/* ── Checkboxes ── */}
@@ -839,22 +853,33 @@ const RegistrationForm = ({ event, onBack }) => {
 const Registration = () => {
   const [searchParams] = useSearchParams();
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [countries, setCountries] = useState([]);
   const [initialLoading, setInitialLoading] = useState(true);
 
   useEffect(() => {
+    // 1. Fetch search param event
     const evId = searchParams.get('event_id');
+    const fetchPromises = [];
+
     if (evId) {
-      // Auto-load event
-      fetch(`${API}/events/${evId}`)
+      fetchPromises.push(
+        fetch(`${API}/events/${evId}`).then(r => r.json()).then(data => setSelectedEvent(data))
+      );
+    }
+
+    // 2. Fetch countries
+    fetchPromises.push(
+      fetch(`${API}/countries`, { headers: { 'Accept': 'application/json' } })
         .then(r => r.json())
         .then(data => {
-          setSelectedEvent(data);
-          setInitialLoading(false);
+            const names = data.map(c => c.arabic_name);
+            setCountries(names);
         })
-        .catch(() => setInitialLoading(false));
-    } else {
-      setInitialLoading(false);
-    }
+        .catch(() => setCountries([]))
+    );
+
+    Promise.all(fetchPromises)
+      .finally(() => setInitialLoading(false));
   }, [searchParams]);
 
   if (initialLoading) return (
@@ -867,7 +892,7 @@ const Registration = () => {
     return <EventSelector onSelect={setSelectedEvent} />;
   }
 
-  return <RegistrationForm event={selectedEvent} onBack={() => setSelectedEvent(null)} />;
+  return <RegistrationForm event={selectedEvent} onBack={() => setSelectedEvent(null)} countryOptions={countries} />;
 };
 
 export default Registration;

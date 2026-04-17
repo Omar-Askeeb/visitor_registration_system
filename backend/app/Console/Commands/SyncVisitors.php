@@ -172,7 +172,7 @@ class SyncVisitors extends Command
             }
         }
 
-        $formID = $prefix . str_pad($iteration, 4, '0', STR_PAD_LEFT);
+        $formID = $prefix . str_pad($iteration, 5, '0', STR_PAD_LEFT);
 
         // --- Generate badgeID ---
         $bPrefix = $event->badge_id_prefix;

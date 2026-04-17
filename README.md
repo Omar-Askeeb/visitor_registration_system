@@ -1,6 +1,4 @@
-﻿# Visitor Registration System
-
-A comprehensive system for managing visitor registrations for Digital Group events.
+﻿A comprehensive system for managing visitor registrations for Digital Group events.
 
 ## Database Information
 - **Database Name:** `digital_group_events`

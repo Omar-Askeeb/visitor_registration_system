@@ -13,6 +13,7 @@ class PrePrintHistory extends Model
         'start_code',
         'end_code',
         'batch_size',
+        'iterative_digits',
         'barcode_width',
         'barcode_height',
         'barcode_x',
