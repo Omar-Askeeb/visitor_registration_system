@@ -14,7 +14,7 @@ const GENDERS    = ['ذكر', 'أنثى'];
 const COUNTRIES  = ['ليبيا']; // Initial value, will be updated by fetch
 const EMPTY_FORM = {
   formID:'', visitorName:'', midleName:'', surName:'',
-  organisation:'', email:'', phone1:'', phone2:'',
+  organisation:'', email:'', phone1:'', has_whatsapp:0, phone2:'',
   gender:'ذكر', nationality:'ليبيا', resident:'ليبيا',
   workfield:[], howexpo:[], print_count:0,
 };
@@ -375,6 +375,7 @@ const RegistrationForm = ({ event, onBack, countryOptions = [] }) => {
       organisation: v.organisation || '',
       email:        v.email        || '',
       phone1:       v.phone1       || '',
+      has_whatsapp: v.has_whatsapp !== undefined ? v.has_whatsapp : 0,
       phone2:       v.phone2       || '',
       gender:       v.gender       || 'ذكر',
       nationality:  v.nationality  || 'ليبيا',
@@ -686,9 +687,23 @@ const RegistrationForm = ({ event, onBack, countryOptions = [] }) => {
 
           {/* ── Phone row ── */}
           <div className="grid grid-cols-2 gap-4">
-            <ArabicInput label="الهاتف 1" name="phone1" value={form.phone1}
-              onChange={handleChange} onKeyDown={makeKeyDown('phone1')}
-              inputRef={refs.phone1} disabled={inputDisabled} />
+            <div className="relative">
+              <ArabicInput label="الهاتف 1" name="phone1" value={form.phone1}
+                onChange={handleChange} onKeyDown={makeKeyDown('phone1')}
+                inputRef={refs.phone1} disabled={inputDisabled} />
+              <div className="absolute left-3 top-0 mt-0 flex items-center gap-1.5 z-10">
+                <label className="flex items-center gap-1.5 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={form.has_whatsapp === 1}
+                    onChange={(e) => setForm(prev => ({ ...prev, has_whatsapp: e.target.checked ? 1 : 0 }))}
+                    disabled={inputDisabled}
+                    className="h-3.5 w-3.5 accent-emerald-500 rounded disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+                  />
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300 transition-colors">واتساب</span>
+                </label>
+              </div>
+            </div>
             <ArabicInput label="الهاتف 2" name="phone2" value={form.phone2}
               onChange={handleChange} onKeyDown={makeKeyDown('phone2')}
               inputRef={refs.phone2} disabled={inputDisabled} />

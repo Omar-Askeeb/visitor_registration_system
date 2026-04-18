@@ -19,6 +19,7 @@ class Visitor extends Model
         'organisation',
         'email',
         'phone1',
+        'has_whatsapp',
         'phone2',
         'gender',
         'nationality',
