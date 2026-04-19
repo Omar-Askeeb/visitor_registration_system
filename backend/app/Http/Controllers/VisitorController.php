@@ -5,8 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Event;
 use App\Models\Visitor;
 use App\Models\ActivityLog;
+use App\Jobs\RegisterVisitorExternalJob;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Database\UniqueConstraintViolationException;
+
 
 class VisitorController extends Controller
 {
@@ -68,6 +72,14 @@ class VisitorController extends Controller
      */
     public function nextBadgeId(Event $event): JsonResponse
     {
+        return response()->json($this->generateNextBadgeIdData($event));
+    }
+
+    /**
+     * Logic to generate the next available badge ID data.
+     */
+    private function generateNextBadgeIdData(Event $event): array
+    {
         $prefix = $event->badge_id_prefix;
         $last = $event->visitors()
             ->whereNotNull('badgeID')
@@ -81,11 +93,12 @@ class VisitorController extends Controller
             $nextNum = ((int) $suffix) + 1;
         }
 
-        return response()->json([
+        return [
             'badgeID' => $prefix . str_pad($nextNum, 5, '0', STR_PAD_LEFT),
             'nextNum' => $nextNum,
-        ]);
+        ];
     }
+
 
     /**
      * Search visitors for an event.
@@ -143,17 +156,42 @@ class VisitorController extends Controller
         $validated['creator_id']  = auth()->id();
         $validated['modifier']    = auth()->id();
 
-        $visitor = Visitor::create($validated);
+        $maxRetries = 3;
+        $visitor = null;
+
+        for ($i = 0; $i < $maxRetries; $i++) {
+            try {
+                // If badgeID is null or empty, generate one
+                if (empty($validated['badgeID'])) {
+                    $badgeData = $this->generateNextBadgeIdData($event);
+                    $validated['badgeID'] = $badgeData['badgeID'];
+                }
+
+                $visitor = Visitor::create($validated);
+                break; // Success!
+            } catch (UniqueConstraintViolationException $e) {
+                // If it's a badgeID collision, clear it and retry with a fresh one
+                // Check if the error message contains 'badgeID' or just retry and let the next loop iteration generate a fresh one
+                if ($i === $maxRetries - 1) throw $e;
+
+                // Reset badgeID to force re-generation in next iteration
+                $validated['badgeID'] = null;
+                
+                // Optional: small delay to avoid immediate lock contention
+                usleep(50000); // 50ms
+            }
+        }
 
         ActivityLog::create([
             'user_id'     => auth()->id(),
             'action'      => 'create_visitor',
-            'description' => 'تسجيل زائر جديد: ' . ($validated['visitorName'] ?? '') . ' [' . ($validated['formID'] ?? '') . ']',
+            'description' => 'تسجيل زائر جديد: ' . ($validated['visitorName'] ?? '') . ' [' . ($validated['badgeID'] ?? '') . ']',
             'ip_address'  => request()->ip(),
         ]);
 
         return response()->json($visitor, 201);
     }
+
 
     /**
      * Update an existing visitor.
@@ -234,6 +272,65 @@ class VisitorController extends Controller
         ]);
 
         return response()->json(['message' => count($ids) . ' records verified.']);
+    }
+
+    /**
+     * Count visitors not yet successfully synced to the external CRM.
+     */
+    public function unsyncedCount(Event $event): JsonResponse
+    {
+        $count = $event->visitors()
+            ->whereNull('onlineRegID')
+            ->where(function ($q) {
+                // Only count records that are actually waiting to be synced
+                // ('null' means never tried, 'pending' means currently in queue)
+                $q->whereNull('external_sync_status')
+                  ->orWhere('external_sync_status', 'pending');
+            })
+            ->count();
+
+        return response()->json(['count' => $count]);
+    }
+
+    /**
+     * Re-queue CRM sync for all visitors of an event that failed or never synced.
+     */
+    public function resyncExternal(Event $event): JsonResponse
+    {
+        // Skip training events
+        if ($event->is_training) {
+            return response()->json(['message' => 'Training events are excluded from CRM sync.'], 422);
+        }
+
+        // Find all on-site visitors that haven't successfully synced
+        $visitors = $event->visitors()
+            ->whereNull('onlineRegID')           // on-site only (not CRM-pulled)
+            ->where(function ($q) {
+                $q->whereNull('external_sync_status')
+                  ->orWhere('external_sync_status', 'failed')
+                  ->orWhere('external_sync_status', 'pending');
+            })
+            ->get();
+
+        $count = $visitors->count();
+
+        foreach ($visitors as $visitor) {
+            // Reset to pending so we can track progress
+            $visitor->update(['external_sync_status' => 'pending', 'external_sync_error' => null]);
+            RegisterVisitorExternalJob::dispatch($visitor);
+        }
+
+        ActivityLog::create([
+            'user_id'     => auth()->id(),
+            'action'      => 'external_crm_resync',
+            'description' => "🔄 Manual CRM Resync triggered for event [{$event->name}]: {$count} records queued.",
+            'ip_address'  => request()->ip(),
+        ]);
+
+        return response()->json([
+            'message' => "{$count} records queued for CRM sync.",
+            'queued'  => $count,
+        ]);
     }
 
     /**

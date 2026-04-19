@@ -44,6 +44,27 @@ const Settings = () => {
     badgeID: '110102062600001'
   });
 
+  const [emailConfig, setEmailConfig] = useState({
+    email_enabled: false,
+    email_subject: '',
+    email_body: '',
+    email_from_name: '',
+  });
+
+  const [remoteDbConfig, setRemoteDbConfig] = useState({
+    remote_db_host: '',
+    remote_db_name: '',
+    remote_db_user: '',
+    remote_db_pass: '',
+    sync_enabled: false,
+    sync_interval: 1,
+  });
+
+  const [testEmail, setTestEmail] = useState('');
+  const [sendingTest, setSendingTest] = useState(false);
+  const [publishingStructure, setPublishingStructure] = useState(false);
+  const [syncingData, setSyncingData] = useState(false);
+
   // 1. Initial Load
   useEffect(() => {
     fetchEvents();
@@ -69,6 +90,20 @@ const Settings = () => {
         
         setSelectedEventId(initialEvent.id);
         setLayout(mergeLayout(initialEvent.badge_layout));
+        setEmailConfig({
+          email_enabled: initialEvent.email_enabled || false,
+          email_subject: initialEvent.email_subject || '',
+          email_body: initialEvent.email_body || '',
+          email_from_name: initialEvent.email_from_name || '',
+        });
+        setRemoteDbConfig({
+          remote_db_host: initialEvent.remote_db_host || '',
+          remote_db_name: initialEvent.remote_db_name || '',
+          remote_db_user: initialEvent.remote_db_user || '',
+          remote_db_pass: initialEvent.remote_db_pass || '',
+          sync_enabled: initialEvent.sync_enabled || false,
+          sync_interval: initialEvent.sync_interval || 1,
+        });
       }
     } catch (e) {
       console.error('Fetch Events Error:', e);
@@ -84,6 +119,20 @@ const Settings = () => {
     const ev = events.find(e => e.id === id);
     if (ev) {
       setLayout(mergeLayout(ev.badge_layout));
+      setEmailConfig({
+        email_enabled: ev.email_enabled || false,
+        email_subject: ev.email_subject || '',
+        email_body: ev.email_body || '',
+        email_from_name: ev.email_from_name || '',
+      });
+      setRemoteDbConfig({
+        remote_db_host: ev.remote_db_host || '',
+        remote_db_name: ev.remote_db_name || '',
+        remote_db_user: ev.remote_db_user || '',
+        remote_db_pass: ev.remote_db_pass || '',
+        sync_enabled: ev.sync_enabled || false,
+        sync_interval: ev.sync_interval || 1,
+      });
     }
   };
 
@@ -112,7 +161,11 @@ const Settings = () => {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify({ badge_layout: layout }),
+        body: JSON.stringify({ 
+          badge_layout: layout,
+          ...emailConfig,
+          ...remoteDbConfig
+        }),
         credentials: 'include'
       });
 
@@ -136,6 +189,45 @@ const Settings = () => {
       toast.error(e.message || 'Failed to commit changes', { id: loadingToast });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSendTestEmail = async () => {
+    if (!selectedEventId || !testEmail) {
+      toast.error('Please select an exhibition and enter a test email address.');
+      return;
+    }
+    setSendingTest(true);
+    const loadingToast = toast.loading('Dispatching test signal...', {
+      style: { borderRadius: '16px', background: '#0f172a', color: '#fff' },
+    });
+    
+    try {
+      const resp = await fetch(`${API}/events/${selectedEventId}/send-test-email`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ email: testEmail }),
+        credentials: 'include'
+      });
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        throw new Error(errData.message || `HTTP ${resp.status}`);
+      }
+      
+      toast.success('Test signal received and acknowledged!', {
+        id: loadingToast,
+        icon: '✉️',
+        style: { borderRadius: '16px', background: '#0f172a', color: '#fff', border: '1px solid #1e293b' },
+      });
+    } catch (e) {
+      console.error('Test Email Error:', e);
+      toast.error(e.message || 'Failed to dispatch test email', { id: loadingToast });
+    } finally {
+      setSendingTest(false);
     }
   };
 
@@ -195,6 +287,7 @@ const Settings = () => {
            {[
              { label: 'Cloud Handshake', icon: Globe },
              { label: 'Database Node', icon: Database },
+             { label: 'Remote Sync Config', icon: RefreshCw },
              { label: 'Security Clearance', icon: Shield },
              { label: 'Layout Protocols', icon: Layout },
              { label: 'Notification HUB', icon: Bell },
@@ -458,6 +551,188 @@ const Settings = () => {
               </section>
            )}
 
+           {activeTab === 'Remote Sync Config' && (
+              <section className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800/50">
+                    <div className="flex items-center space-x-3">
+                       <RefreshCw className="h-5 w-5 text-slate-400 dark:text-slate-600" />
+                       <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">Remote Database Integration</h3>
+                    </div>
+                    
+                    <div className="flex items-center space-x-3 bg-slate-100 dark:bg-slate-950/30 p-2 px-4 rounded-xl border border-slate-200 dark:border-slate-800/50">
+                       <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Auto Sync Engine</span>
+                       <button 
+                         onClick={() => setRemoteDbConfig(p => ({ ...p, sync_enabled: !p.sync_enabled }))}
+                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${remoteDbConfig.sync_enabled ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-800'}`}
+                       >
+                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${remoteDbConfig.sync_enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                       </button>
+                    </div>
+                 </div>
+
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-6">
+                       <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4">Connection Parameters</h4>
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Remote Host (IP / Domain)</label>
+                          <input 
+                            type="text" 
+                            value={remoteDbConfig.remote_db_host}
+                            onChange={e => setRemoteDbConfig(p => ({ ...p, remote_db_host: e.target.value }))}
+                            placeholder="e.g. 192.168.1.100 or mydb.server.com"
+                            className="w-full bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800/50 rounded-xl py-4 px-6 text-xs font-bold focus:border-cyan-500 outline-none transition-colors"
+                          />
+                       </div>
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Database Name</label>
+                          <input 
+                            type="text" 
+                            value={remoteDbConfig.remote_db_name}
+                            onChange={e => setRemoteDbConfig(p => ({ ...p, remote_db_name: e.target.value }))}
+                            placeholder="e.g. cloud_events"
+                            className="w-full bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800/50 rounded-xl py-4 px-6 text-xs font-bold focus:border-cyan-500 outline-none transition-colors"
+                          />
+                       </div>
+                    </div>
+
+                    <div className="space-y-6">
+                       <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4">Credentials & Timers</h4>
+                       <div className="grid grid-cols-2 gap-4">
+                           <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Username</label>
+                              <input 
+                                type="text" 
+                                value={remoteDbConfig.remote_db_user}
+                                onChange={e => setRemoteDbConfig(p => ({ ...p, remote_db_user: e.target.value }))}
+                                placeholder="e.g. remote_usr"
+                                className="w-full bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800/50 rounded-xl py-4 px-6 text-xs font-bold focus:border-cyan-500 outline-none transition-colors"
+                              />
+                           </div>
+                           <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Password</label>
+                              <input 
+                                type="password" 
+                                value={remoteDbConfig.remote_db_pass}
+                                onChange={e => setRemoteDbConfig(p => ({ ...p, remote_db_pass: e.target.value }))}
+                                placeholder="••••••••"
+                                autoComplete="new-password"
+                                className="w-full bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800/50 rounded-xl py-4 px-6 text-xs font-bold focus:border-cyan-500 outline-none transition-colors"
+                              />
+                           </div>
+                       </div>
+                       
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Sync Interval (Minutes)</label>
+                          <input 
+                            type="number" 
+                            min="1"
+                            value={remoteDbConfig.sync_interval}
+                            onChange={e => setRemoteDbConfig(p => ({ ...p, sync_interval: parseInt(e.target.value) || 1 }))}
+                            className="w-full bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800/50 rounded-xl py-4 px-6 text-xs font-bold focus:border-cyan-500 outline-none transition-colors"
+                          />
+                       </div>
+                    </div>
+                 </div>
+
+                 <div className="pt-6 border-t border-slate-200 dark:border-slate-800/50 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="space-y-1">
+                       <h4 className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">Publish Database Structure</h4>
+                       <p className="text-[9px] font-bold text-slate-500 uppercase">Clones your local tables directly onto the remote server for the Dashboard.</p>
+                       <p className="text-[8px] font-bold text-red-400 uppercase">Note: You must click "Commit Changes" above first to save the credentials!</p>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                       <button 
+                         onClick={async () => {
+                           // Sync Data Button
+                           if (!remoteDbConfig.remote_db_host || !remoteDbConfig.remote_db_user) {
+                              toast.error('Incomplete credentials! Please input Host and DB User.');
+                              return;
+                           }
+                           
+                           setSyncingData(true);
+                           const loadingToast = toast.loading('Establishing uplink and beaming records to the cloud...', {
+                             style: { borderRadius: '16px', background: '#0f172a', color: '#fff' },
+                           });
+
+                           try {
+                             const resp = await fetch(`${API}/events/${selectedEventId}/push-data`, {
+                               method: 'POST',
+                               headers: { 'Accept': 'application/json' },
+                               credentials: 'include'
+                             });
+
+                             if (!resp.ok) {
+                               const errData = await resp.json().catch(() => ({}));
+                               throw new Error(errData.message || `HTTP ${resp.status}`);
+                             }
+                             
+                             const data = await resp.json();
+                             toast.success(data.message || 'Records Successfully Beamed! 🚀', {
+                               id: loadingToast,
+                               icon: '📡',
+                               style: { borderRadius: '16px', background: '#0f172a', color: '#fff', border: '1px solid #1e293b' },
+                             });
+                           } catch (e) {
+                             console.error('Sync Error:', e);
+                             toast.error(e.message || 'Data stream interrupted. Please check connection.', { id: loadingToast });
+                           } finally {
+                             setSyncingData(false);
+                           }
+                         }}
+                         disabled={syncingData || publishingStructure || !selectedEventId}
+                         className="flex items-center space-x-2 bg-gradient-to-r from-emerald-500 to-teal-400 text-white px-6 py-3 rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
+                       >
+                         {syncingData ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                         <span>Sync Now</span>
+                       </button>
+
+                       <button 
+                         onClick={async () => {
+                           if (!remoteDbConfig.remote_db_host || !remoteDbConfig.remote_db_user) {
+                              toast.error('Incomplete credentials! Please input Host and DB User.');
+                              return;
+                           }
+                           
+                           setPublishingStructure(true);
+                           const loadingToast = toast.loading('Publishing local structures to remote cluster...', {
+                             style: { borderRadius: '16px', background: '#0f172a', color: '#fff' },
+                           });
+
+                           try {
+                             const resp = await fetch(`${API}/events/${selectedEventId}/publish-structure`, {
+                               method: 'POST',
+                               headers: { 'Accept': 'application/json' },
+                               credentials: 'include'
+                             });
+
+                             if (!resp.ok) {
+                               const errData = await resp.json().catch(() => ({}));
+                               throw new Error(errData.message || `HTTP ${resp.status}`);
+                             }
+                             
+                             toast.success('Database structures mirrored perfectly!', {
+                               id: loadingToast,
+                               icon: '🌐',
+                               style: { borderRadius: '16px', background: '#0f172a', color: '#fff', border: '1px solid #1e293b' },
+                             });
+                           } catch (e) {
+                             console.error('Publish Error:', e);
+                             toast.error(e.message || 'Failed to connect to remote DB and publish structure.', { id: loadingToast });
+                           } finally {
+                             setPublishingStructure(false);
+                           }
+                         }}
+                         disabled={publishingStructure || syncingData || !selectedEventId}
+                         className="flex items-center space-x-2 bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-6 py-3 rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
+                       >
+                         {publishingStructure ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
+                         <span>Publish Schema</span>
+                       </button>
+                    </div>
+                 </div>
+              </section>
+           )}
+
            {activeTab === 'Security Clearance' && (
               <section className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                  <div className="flex items-center space-x-3 pb-4 border-b border-slate-200 dark:border-slate-800/50">
@@ -488,7 +763,110 @@ const Settings = () => {
               </section>
            )}
 
-           {!['Cloud Handshake', 'Database Node', 'Security Clearance', 'Layout Protocols'].includes(activeTab) && (
+            {activeTab === 'Notification HUB' && (
+              <section className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800/50">
+                    <div className="flex items-center space-x-3">
+                       <Bell className="h-5 w-5 text-slate-400 dark:text-slate-600" />
+                       <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">Email notification HUB</h3>
+                    </div>
+                    
+                    <div className="flex items-center space-x-3 bg-slate-100 dark:bg-slate-950/30 p-2 px-4 rounded-xl border border-slate-200 dark:border-slate-800/50">
+                       <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Automatic Welcome Email</span>
+                       <button 
+                         onClick={() => setEmailConfig(p => ({ ...p, email_enabled: !p.email_enabled }))}
+                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${emailConfig.email_enabled ? 'bg-cyan-500' : 'bg-slate-300 dark:bg-slate-800'}`}
+                       >
+                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${emailConfig.email_enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                       </button>
+                    </div>
+                 </div>
+
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-6">
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Sender Name</label>
+                          <input 
+                            type="text" 
+                            value={emailConfig.email_from_name}
+                            onChange={e => setEmailConfig(p => ({ ...p, email_from_name: e.target.value }))}
+                            placeholder="e.g. Exhibition Team"
+                            className="w-full bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800/50 rounded-xl py-4 px-6 text-xs font-bold focus:border-cyan-500 outline-none transition-colors"
+                          />
+                       </div>
+                       <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Email Subject</label>
+                          <input 
+                            type="text" 
+                            value={emailConfig.email_subject}
+                            onChange={e => setEmailConfig(p => ({ ...p, email_subject: e.target.value }))}
+                            placeholder="Welcome to {eventName}"
+                            className="w-full bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800/50 rounded-xl py-4 px-6 text-xs font-bold focus:border-cyan-500 outline-none transition-colors"
+                          />
+                       </div>
+                    </div>
+
+                    <div className="bg-slate-100 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-3xl p-6">
+                       <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center">
+                          <Zap className="h-3 w-3 mr-2 text-cyan-500" />
+                          Template Variables
+                       </h4>
+                       <div className="flex flex-wrap gap-2">
+                          {[
+                            '{visitorName}', '{formID}', '{badgeID}', 
+                            '{phone1}', '{phone2}', '{organisation}', '{eventName}'
+                          ].map(v => (
+                            <button 
+                              key={v}
+                              onClick={() => setEmailConfig(p => ({ ...p, email_body: p.email_body + v }))}
+                              className="px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[9px] font-black text-slate-500 hover:text-cyan-500 hover:border-cyan-500/30 transition-all font-mono"
+                            >
+                              {v}
+                            </button>
+                          ))}
+                       </div>
+                       <p className="mt-4 text-[9px] font-bold text-slate-500 uppercase leading-relaxed tracking-wider italic">Click a variable to insert it at the end of the template body.</p>
+                    </div>
+                 </div>
+
+                 <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Email Message Body</label>
+                    <textarea 
+                      rows={8}
+                      value={emailConfig.email_body}
+                      onChange={e => setEmailConfig(p => ({ ...p, email_body: e.target.value }))}
+                      placeholder="Dear {visitorName}, thank you for registering..."
+                      className="w-full bg-white dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800/50 rounded-2xl py-6 px-6 text-sm font-medium focus:border-cyan-500 outline-none transition-colors resize-none leading-relaxed"
+                    />
+                 </div>
+
+                 <div className="pt-6 border-t border-slate-200 dark:border-slate-800/50 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="space-y-1">
+                       <h4 className="text-[10px] font-black text-slate-900 dark:text-white uppercase tracking-widest">Protocol Validation</h4>
+                       <p className="text-[9px] font-bold text-slate-500 uppercase">Send a dry-run email to verify your template and connectivity.</p>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                       <input 
+                         type="email"
+                         value={testEmail}
+                         onChange={e => setTestEmail(e.target.value)}
+                         placeholder="test@example.com"
+                         className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl py-3 px-4 text-xs font-bold outline-none focus:border-cyan-500 w-48 transition-all"
+                       />
+                       <button 
+                         onClick={handleSendTestEmail}
+                         disabled={sendingTest || !testEmail}
+                         className="flex items-center space-x-2 bg-slate-900 text-white dark:bg-white dark:text-slate-900 px-6 py-3 rounded-xl shadow-lg hover:scale-105 active:scale-95 transition-all text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
+                       >
+                         {sendingTest ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                         <span>Send Test</span>
+                       </button>
+                    </div>
+                 </div>
+              </section>
+            )}
+
+           {!['Cloud Handshake', 'Database Node', 'Security Clearance', 'Layout Protocols', 'Notification HUB', 'Remote Sync Config'].includes(activeTab) && (
               <div className="flex flex-col items-center justify-center h-full text-center space-y-4 opacity-50">
                  <MousePointer2 className="h-12 w-12 text-slate-400" />
                  <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">{activeTab} parameters locked</h3>

@@ -6,6 +6,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\VisitorController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\MediaAgentController;
+
 
 // --- Public Auth ---
 use App\Http\Controllers\PrePrintHistoryController;
@@ -39,6 +41,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/events/{event}/sync', [SyncController::class, 'sync']);
     Route::get('/events/{event}/sync-logs', [SyncController::class, 'index']);
     Route::get('/events/{event}/sync-status', [SyncController::class, 'status']);
+    Route::post('/events/{event}/send-test-email', [EventController::class, 'sendTestEmail']);
+    Route::post('/events/{event}/publish-structure', [EventController::class, 'publishStructure']);
+    Route::post('/events/{event}/push-data', [EventController::class, 'pushData']);
     Route::get('/users', [UserController::class, 'index']);
     Route::get('/countries', [CountryController::class, 'index']);
 
@@ -57,6 +62,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/', [VisitorController::class, 'store']);
             Route::post('/training-records', [TrainingRecordController::class, 'store']);
             Route::get('/next-badge-id', [VisitorController::class, 'nextBadgeId']);
+            Route::get('/unsynced-count', [VisitorController::class, 'unsyncedCount']);
+            Route::post('/resync-external', [VisitorController::class, 'resyncExternal']);
         });
 
         // Admin, Data Entry, Auditor
@@ -68,4 +75,17 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/{visitor}/increment-print', [VisitorController::class, 'incrementPrintCount']);
         });
     });
+
+    // --- Media Agent routes ---
+    Route::prefix('events/{event}/media-agents')->group(function () {
+        Route::middleware('role:admin,data_entry')->group(function () {
+            Route::post('/', [MediaAgentController::class, 'store']);
+            Route::get('/search', [MediaAgentController::class, 'search']);
+            Route::put('/{media_agent}', [MediaAgentController::class, 'update']);
+            Route::post('/{media_agent}/increment-print', [MediaAgentController::class, 'incrementPrintCount']);
+
+        });
+    });
 });
+
+

@@ -160,8 +160,11 @@ class SyncVisitors extends Command
         $prefix = $event->online_reg_prefix;
         
         // Find next formID iteration
-        $lastVisitor = Visitor::where('formID', 'like', $prefix . '%')
-            ->orderBy('formID', 'desc')
+        $onlineLength = strlen($prefix) + 4;
+        $lastVisitor = Visitor::where('event_id', $event->id)
+            ->where('formID', 'like', $prefix . '%')
+            ->whereRaw('CHAR_LENGTH(formID) = ?', [$onlineLength])
+            ->orderByRaw('CAST(SUBSTRING(formID, ?) AS UNSIGNED) DESC', [strlen($prefix) + 1])
             ->first();
 
         $iteration = 1;
@@ -172,7 +175,7 @@ class SyncVisitors extends Command
             }
         }
 
-        $formID = $prefix . str_pad($iteration, 5, '0', STR_PAD_LEFT);
+        $formID = $prefix . str_pad($iteration, 4, '0', STR_PAD_LEFT);
 
         // --- Generate badgeID ---
         $bPrefix = $event->badge_id_prefix;

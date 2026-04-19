@@ -24,10 +24,18 @@ class Event extends Model
         'sync_url',
         'sync_interval',
         'sync_countdown',
+        'remote_db_host',
+        'remote_db_name',
+        'remote_db_user',
+        'remote_db_pass',
         'workfield_options',
         'howexpo_options',
         'is_training',
         'badge_layout',
+        'email_enabled',
+        'email_subject',
+        'email_body',
+        'email_from_name',
     ];
 
     protected $casts = [
@@ -38,6 +46,7 @@ class Event extends Model
         'howexpo_options'   => 'array',
         'is_training'       => 'boolean',
         'badge_layout'      => 'array',
+        'email_enabled'     => 'boolean',
     ];
 
     public function syncLogs(): HasMany
@@ -54,6 +63,12 @@ class Event extends Model
     {
         return $this->hasMany(Scan::class);
     }
+
+    public function mediaAgents(): HasMany
+    {
+        return $this->hasMany(MediaAgent::class);
+    }
+
 
     /**
      * Get visitor count for this event.

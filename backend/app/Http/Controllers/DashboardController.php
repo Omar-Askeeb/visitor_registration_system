@@ -67,7 +67,11 @@ class DashboardController extends Controller
                 'registered_count'  => $events->sum('visitors_count'),
                 'target_visitors'   => $events->sum('target_visitors'),
                 'total_attendance'  => $stats->sum('total_attendance'),
+                'emails_sent'       => \App\Models\Visitor::where('email_send_status', 'sent')->count(),
+                'emails_failed'     => \App\Models\Visitor::where('email_send_status', 'failed')->count(),
+                'emails_pending'    => \App\Models\Visitor::where(fn($q) => $q->whereNull('email_send_status')->orWhere('email_send_status', 'pending'))->whereNotNull('email')->count(),
             ],
+
             'top_personnel' => $topPersonnel->map(fn($u) => [
                 'id'      => $u->id,
                 'name'    => $u->name,

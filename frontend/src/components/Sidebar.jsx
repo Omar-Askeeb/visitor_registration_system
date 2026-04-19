@@ -36,7 +36,9 @@ const Sidebar = ({ isOpen, onClose }) => {
     { icon: LayoutDashboard, label: 'Dashboard',    path: '/dashboard', color: 'cyan',    roles: ['admin'] },
     { icon: CalendarRange,   label: 'Events',        path: '/events',    color: 'violet', roles: ['admin', 'data_entry'] },
     { icon: PlusCircle,      label: 'Registration',  path: '/registration', color: 'emerald', roles: ['admin', 'data_entry'] },
+    { icon: FileText,        label: 'Media Registration', path: '/media-registration', color: 'indigo', roles: ['admin', 'data_entry'] },
     { icon: Users,           label: 'Personnel',     path: '/users',     color: 'blue',   roles: ['admin'] },
+
     { icon: ClipboardCheck,  label: 'Review Queue',   path: '/reviews',   color: 'purple', roles: ['admin', 'auditor'] },
     { icon: ShieldCheck,     label: 'Audit Correction', path: '/audit-correction', color: 'cyan', roles: ['admin', 'auditor'] },
     { icon: Printer,         label: 'Pre-Print Badges', path: '/pre-print', color: 'indigo',  roles: ['admin'] },

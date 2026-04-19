@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('scans', function (Blueprint $table) {
-            $table->id();
+            $table->foreignId('event_id')->nullable()->constrained('events')->cascadeOnDelete();
             $table->string('barcode')->index();
             $table->dateTime('timestamp')->index();
             $table->string('gate_details')->nullable();

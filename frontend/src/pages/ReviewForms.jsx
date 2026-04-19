@@ -18,7 +18,9 @@ import {
   UserCheck,
   Calendar,
   Fingerprint,
+  Mail,
 } from 'lucide-react';
+
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { openPrintWindow } from '../utils/printBadge';
@@ -299,9 +301,11 @@ const ReviewForms = () => {
                 <th className="px-6 py-5">PERSONNEL (Creator)</th>
                 <th className="px-6 py-5">EXHIBITION</th>
                 <th className="px-6 py-5">Audit Status</th>
+                <th className="px-6 py-5">Email Status</th>
                 <th className="px-6 py-5 text-right">Actions</th>
               </tr>
             </thead>
+
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/30">
               {loading ? (
                 <tr><td colSpan="7" className="py-24 text-center">
@@ -368,6 +372,47 @@ const ReviewForms = () => {
                       )}
                     </div>
                   </td>
+                  <td className="px-6 py-6 font-bold text-[10px] uppercase">
+                    {v.email_send_status === 'sent' && (
+                       <div className="flex flex-col items-center">
+                          <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg">
+                             <Mail className="h-3 w-3" />
+                             <span>Sent</span>
+                          </div>
+                          <span className="text-[8px] text-slate-400 mt-1 tabular-nums">
+                             {v.email_sent_at ? new Date(v.email_sent_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                          </span>
+                       </div>
+                    )}
+                    {v.email_send_status === 'failed' && (
+                       <div className="flex flex-col items-center" title={v.email_send_error}>
+                          <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-red-500/10 text-red-500 border border-red-500/20 rounded-lg cursor-help">
+                             <AlertCircle className="h-3 w-3" />
+                             <span>Failed</span>
+                          </div>
+                          <span className="text-[8px] text-red-400 mt-1 truncate max-w-[80px] text-center">
+                             {v.email_send_error}
+                          </span>
+                       </div>
+                    )}
+                    {(!v.email_send_status || v.email_send_status === 'pending') && (
+                       <div className="flex justify-center">
+                          <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700 rounded-lg">
+                             <History className="h-3 w-3" />
+                             <span>Pending</span>
+                          </div>
+                       </div>
+                    )}
+                    {v.email_send_status === 'skipped' && (
+                       <div className="flex justify-center">
+                          <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-400 border border-slate-200 dark:border-slate-700 rounded-lg opacity-50">
+                             <X className="h-3 w-3" />
+                             <span>Skipped</span>
+                          </div>
+                       </div>
+                    )}
+                  </td>
+
                   <td className="px-6 py-6 text-right">
                     <div className="flex items-center justify-end space-x-2 opacity-60 group-hover:opacity-100 transition-opacity">
                       <button 

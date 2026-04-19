@@ -17,8 +17,11 @@ import {
   Users,
   CalendarDays,
   Activity,
-  ArrowUpRight
+  ArrowUpRight,
+  Mail,
+  AlertCircle
 } from 'lucide-react';
+
 import { useAuth } from '../context/AuthContext';
 import EventInsightsModal from '../components/EventInsightsModal';
 import PersonnelStatsModal from '../components/PersonnelStatsModal';
@@ -94,12 +97,14 @@ const Dashboard = () => {
       </header>
 
       {/* Primary Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-12">
         <StatsCard label="إجمالي المسجلين" value={data.totals.registered_count} icon={Users} trend="Registered" color="from-blue-500 to-cyan-500" />
         <StatsCard label="إجمالي الحضور" value={data.totals.total_attendance} icon={UserCheck} trend="Attendance" color="from-emerald-500 to-teal-500" />
         <StatsCard label="زيارات متكررة" value={data.events.reduce((acc, ev) => acc + (ev.redundant_visits || 0), 0)} icon={Repeat} trend="Redundant" color="from-purple-500 to-indigo-500" />
         <StatsCard label="نسبة الإنجاز" value={`${Math.round((data.totals.registered_count / (data.totals.target_visitors || 1)) * 100)}%`} icon={TrendingUp} color="from-amber-500 to-orange-500" />
+        <StatsCard label="رسائل البريد" value={data.totals.emails_sent} total={data.totals.registered_count} icon={Mail} trend="Delivered" color="from-cyan-500 to-blue-500" />
       </div>
+
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 relative">
         <div className="absolute -bottom-24 -right-24 h-64 w-64 bg-blue-500/5 blur-[120px] rounded-full" />
@@ -235,9 +240,39 @@ const Dashboard = () => {
 
           <div className="bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700/30 rounded-[32px] p-8 backdrop-blur-xl group hover:border-slate-300 dark:hover:border-slate-500/50 transition-all duration-500">
             <h3 className="text-slate-900 dark:text-white font-black text-xs uppercase tracking-[0.2em] mb-6 flex items-center space-x-2">
+              <Mail className="h-4 w-4 text-cyan-500" />
+              <span>Email Notification Pulse</span>
+            </h3>
+            
+            <div className="space-y-4">
+               {[
+                 { label: 'Delivered', value: data.totals.emails_sent, color: 'text-emerald-500', bg: 'bg-emerald-500' },
+                 { label: 'Pending', value: data.totals.emails_pending, color: 'text-amber-500', bg: 'bg-amber-500' },
+                 { label: 'Failed', value: data.totals.emails_failed, color: 'text-red-500', bg: 'bg-red-500' }
+               ].map((item, i) => (
+                 <div key={i} className="flex items-center justify-between p-4 bg-white dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-700/30">
+                    <div>
+                       <div className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{item.label}</div>
+                       <div className="text-xl font-black text-slate-900 dark:text-white">{item.value || 0}</div>
+                    </div>
+                    <div className={`h-2 w-12 ${item.bg} rounded-full opacity-20`} />
+                 </div>
+               ))}
+               <button 
+                 onClick={() => navigate('/reviews')}
+                 className="w-full py-4 text-[10px] font-black uppercase tracking-[0.2em] text-cyan-500 hover:text-cyan-400 transition-colors"
+               >
+                 View All Records →
+               </button>
+            </div>
+          </div>
+
+          <div className="bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700/30 rounded-[32px] p-8 backdrop-blur-xl group hover:border-slate-300 dark:hover:border-slate-500/50 transition-all duration-500">
+            <h3 className="text-slate-900 dark:text-white font-black text-xs uppercase tracking-[0.2em] mb-6 flex items-center space-x-2">
               <ShieldCheck className="h-4 w-4 text-emerald-500" />
               <span>Network Infrastructure</span>
             </h3>
+
             
             <div className="space-y-4">
                {[

@@ -19,6 +19,7 @@ import {
   Calendar,
   RefreshCcw,
   Timer,
+  UploadCloud,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -495,10 +496,46 @@ const DeleteModal = ({ event, onClose, onDelete }) => {
 /* ═══════════════════════════════════════════════════════════════════════════
    EventCard
 ═══════════════════════════════════════════════════════════════════════════ */
-const EventCard = ({ event, onEdit, onDelete, isReadOnly }) => {
+const EventCard = ({ event, onEdit, onDelete, isReadOnly, onNotify }) => {
   const progress = event.target_visitors > 0
     ? Math.min((event.visitors_count / event.target_visitors) * 100, 100)
     : 0;
+
+  const [resyncing, setResyncing]         = useState(false);
+  const [unsyncedCount, setUnsyncedCount] = useState(null);
+
+  // Fetch unsynced count on mount (skip training events)
+  useEffect(() => {
+    if (event.is_training) return;
+    fetch(`${API_BASE}/events/${event.id}/visitors/unsynced-count`, {
+      headers: { Accept: 'application/json' },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setUnsyncedCount(d.count); })
+      .catch(() => {});
+  }, [event.id, event.is_training]);
+
+  const handleResync = async () => {
+    if (resyncing) return;
+    setResyncing(true);
+    try {
+      const res = await fetch(`${API_BASE}/events/${event.id}/visitors/resync-external`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        onNotify(`CRM Resync queued: ${data.queued} records.`);
+        setUnsyncedCount(0);
+      } else {
+        onNotify(data.message || 'Resync failed.', 'error');
+      }
+    } catch {
+      onNotify('Resync request failed.', 'error');
+    } finally {
+      setResyncing(false);
+    }
+  };
 
   const formatDate = (d) => {
     if (!d) return '—';
@@ -604,6 +641,27 @@ const EventCard = ({ event, onEdit, onDelete, isReadOnly }) => {
             <Pencil className="h-3.5 w-3.5" />
             <span>Edit</span>
           </button>
+
+          {/* CRM Resync button — only for non-training events */}
+          {!event.is_training && (
+            <button
+              onClick={handleResync}
+              disabled={resyncing || unsyncedCount === 0}
+              title={unsyncedCount === 0 ? 'All records synced' : `${unsyncedCount ?? '?'} unsynced records`}
+              className="relative flex items-center justify-center px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-amber-500 hover:border-amber-500/30 hover:bg-amber-500/5 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            >
+              {resyncing
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <UploadCloud className="h-3.5 w-3.5" />
+              }
+              {unsyncedCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 h-4 min-w-[16px] px-1 bg-amber-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                  {unsyncedCount}
+                </span>
+              )}
+            </button>
+          )}
+
           <button
             onClick={() => onDelete(event)}
             className="flex items-center justify-center px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-red-500 hover:border-red-500/30 hover:bg-red-500/5 transition-all"
@@ -766,6 +824,7 @@ const EventManagement = () => {
               isReadOnly={isReadOnly}
               onEdit={openEdit}
               onDelete={openDelete}
+              onNotify={notify}
             />
           ))}
         </div>

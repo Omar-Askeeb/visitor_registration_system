@@ -2,8 +2,11 @@
 
 namespace App\Models;
 
+use App\Jobs\RegisterVisitorExternalJob;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
 
 class Visitor extends Model
 {
@@ -38,7 +41,14 @@ class Visitor extends Model
         'verification_notes',
         'online_source',
         'online_created_at',
+        'external_sync_status',
+        'external_sync_id',
+        'external_sync_error',
+        'email_send_status',
+        'email_sent_at',
+        'email_send_error',
     ];
+
 
     protected $casts = [
         'modifydate'  => 'datetime',
@@ -46,6 +56,30 @@ class Visitor extends Model
         'howexpo'     => 'array',
         'is_verified' => 'boolean',
     ];
+
+    /**
+     * Dispatch the external CRM sync job when a new on-site visitor is created.
+     * Skipped for: visitors pulled from CRM (onlineRegID set) and training events.
+     */
+    protected static function booted(): void
+    {
+        static::created(function (Visitor $visitor) {
+            // Only skip visitors that were pulled from the CRM (they have onlineRegID set).
+            // All other entries — on-site, other platforms — have onlineRegID = NULL and SHOULD be pushed.
+            if ($visitor->onlineRegID) {
+                return;
+            }
+
+            // Skip if the event is in training mode
+            $event = \App\Models\Event::find($visitor->event_id);
+            if ($event && $event->is_training) {
+                return;
+            }
+
+            RegisterVisitorExternalJob::dispatch($visitor);
+            \App\Jobs\SendVisitorEmailJob::dispatch($visitor);
+        });
+    }
 
     public function event(): BelongsTo
     {
@@ -66,6 +100,12 @@ class Visitor extends Model
     {
         return $this->belongsTo(User::class, 'verified_by_id');
     }
+
+    public function emailLogs(): HasMany
+    {
+        return $this->hasMany(EmailLog::class);
+    }
+
 
     /**
      * Encode the given value as JSON.
