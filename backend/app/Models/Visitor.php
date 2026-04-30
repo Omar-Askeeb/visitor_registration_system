@@ -30,6 +30,9 @@ class Visitor extends Model
         'workfield',
         'howexpo',
         'print_count',
+        'print_date',
+        'printed_by',
+        'fill_duration',
         'modifier',
         'modifyUnits',
         'insertUnits',
@@ -99,6 +102,11 @@ class Visitor extends Model
     public function verifiedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'verified_by_id');
+    }
+
+    public function printer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'printed_by');
     }
 
     public function emailLogs(): HasMany

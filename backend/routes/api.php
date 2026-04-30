@@ -27,6 +27,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index']);
         Route::apiResource('users', UserController::class)->except(['index', 'show']);
         Route::apiResource('events', EventController::class)->except(['index', 'show']);
+        Route::post('/events/{event}/clean-scans-day', [EventController::class, 'cleanScansForDay']);
         Route::get('/logs', [UserController::class, 'logs']);
         Route::get('/users/{user}/performance', [UserController::class, 'performance']);
     });

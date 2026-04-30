@@ -14,15 +14,40 @@ class DashboardController extends Controller
         $events = Event::withCount('visitors')->get();
 
         $stats = $events->map(function (Event $event) {
-            // Daily visitors (unique barcode per day)
-            $dailyStats = $event->scans()
-                ->select(DB::raw('DATE(timestamp) as scan_date'), DB::raw('count(distinct barcode) as unique_count'))
+            // Daily visitors (raw vs unique barcode per day)
+            $dailyStatsDB = $event->scans()
+                ->select(DB::raw('DATE(timestamp) as scan_date'), DB::raw('count(distinct barcode) as unique_count'), DB::raw('count(*) as raw_count'))
                 ->groupBy('scan_date')
                 ->orderBy('scan_date')
-                ->get();
+                ->get()
+                ->keyBy('scan_date');
+
+            // Generate padded daily stats from start_date to end_date
+            $paddedDailyStats = [];
+            if ($event->start_date && $event->end_date) {
+                $period = \Carbon\CarbonPeriod::create(\Carbon\Carbon::parse($event->start_date), \Carbon\Carbon::parse($event->end_date));
+                foreach ($period as $date) {
+                    $dateString = $date->format('Y-m-d');
+                    if (isset($dailyStatsDB[$dateString])) {
+                        $paddedDailyStats[] = [
+                            'scan_date' => $dateString,
+                            'unique_count' => $dailyStatsDB[$dateString]->unique_count,
+                            'raw_count' => $dailyStatsDB[$dateString]->raw_count,
+                        ];
+                    } else {
+                        $paddedDailyStats[] = [
+                            'scan_date' => $dateString,
+                            'unique_count' => 0,
+                            'raw_count' => 0,
+                        ];
+                    }
+                }
+            } else {
+                $paddedDailyStats = $dailyStatsDB->values()->toArray();
+            }
 
             // Total attendance: sum of unique daily visitors
-            $totalAttendance = $dailyStats->sum('unique_count');
+            $totalAttendance = collect($paddedDailyStats)->sum('unique_count');
 
             // Unique visitors who returned for >1 distinct day
             $redundantCount = DB::table('scans')
@@ -49,7 +74,7 @@ class DashboardController extends Controller
                 'status'             => $event->status,
                 'start_date'         => $event->start_date,
                 'end_date'           => $event->end_date,
-                'daily_stats'        => $dailyStats,
+                'daily_stats'        => $paddedDailyStats,
                 'total_attendance'   => $totalAttendance,
                 'redundant_visits'   => $redundantCount,
             ];

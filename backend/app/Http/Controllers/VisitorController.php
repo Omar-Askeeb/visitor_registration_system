@@ -20,7 +20,7 @@ class VisitorController extends Controller
     public function index(Request $request, Event $event): JsonResponse
     {
         $query = $event->visitors()
-            ->with(['creator:id,name', 'modifiedBy:id,name', 'verifiedBy:id,name']);
+            ->with(['creator:id,name', 'modifiedBy:id,name', 'verifiedBy:id,name', 'printer:id,name']);
 
         // Filtering by personnel (creator)
         if ($request->has('creator_id')) {
@@ -108,6 +108,24 @@ class VisitorController extends Controller
         $q = $request->query('q', '');
         if (strlen($q) < 1) return response()->json([]);
 
+        // Improvement: If the query is a long numeric string, try an exact match first
+        // to avoid "prefix pollution" from debounced searches.
+        $exactMatch = null;
+        if (is_numeric($q) && strlen($q) > 8) {
+            $exactMatch = $event->visitors()
+                ->where(function ($query) use ($q) {
+                    $query->where('formID', $q)
+                          ->orWhere('onlineRegID', $q);
+                })
+                ->with(['creator:id,name', 'modifiedBy:id,name', 'verifiedBy:id,name', 'printer:id,name'])
+                ->first();
+        }
+
+        // If we found an exact match for a long ID, return it immediately to avoid confusion
+        if ($exactMatch) {
+            return response()->json([$exactMatch]);
+        }
+
         $visitors = $event->visitors()
             ->where(function ($query) use ($q) {
                 $query->where('visitorName',  'like', "%{$q}%")
@@ -115,11 +133,10 @@ class VisitorController extends Controller
                       ->orWhere('email',       'like', "%{$q}%")
                       ->orWhere('phone1',      'like', "%{$q}%")
                       ->orWhere('phone2',      'like', "%{$q}%")
-                      ->orWhere('badgeID',     'like', "%{$q}%")
                       ->orWhere('formID',      'like', "%{$q}%")
                       ->orWhere('onlineRegID', 'like', "%{$q}%");
             })
-            ->with(['creator:id,name', 'modifiedBy:id,name', 'verifiedBy:id,name'])
+            ->with(['creator:id,name', 'modifiedBy:id,name', 'verifiedBy:id,name', 'printer:id,name'])
             ->limit(20)
             ->get();
 
@@ -155,6 +172,12 @@ class VisitorController extends Controller
         $validated['insertUnits'] = 1;
         $validated['creator_id']  = auth()->id();
         $validated['modifier']    = auth()->id();
+
+        // Auto-stamp print_date when a new visitor is saved+printed in one step
+        if (!empty($validated['print_count']) && $validated['print_count'] > 0) {
+            $validated['print_date'] = now();
+            $validated['printed_by'] = auth()->id();
+        }
 
         $maxRetries = 3;
         $visitor = null;
@@ -222,6 +245,16 @@ class VisitorController extends Controller
         $validated['modifier']    = auth()->id();
         $validated['modifydate']  = now();
         $validated['modifyCount'] = $visitor->modifyCount + 1;
+
+        // Auto-stamp print_date on first print
+        if (
+            isset($validated['print_count']) &&
+            $validated['print_count'] > ($visitor->print_count ?? 0) &&
+            is_null($visitor->print_date)
+        ) {
+            $validated['print_date'] = now();
+            $validated['printed_by'] = auth()->id();
+        }
 
         // If Auditor/Admin is updating, flag as 'fixed' and mark verified if requested
         if (auth()->user()->role !== 'data_entry') {
@@ -338,7 +371,15 @@ class VisitorController extends Controller
      */
     public function incrementPrintCount(Event $event, Visitor $visitor): JsonResponse
     {
-        $visitor->increment('print_count');
+        $visitor->print_count += 1;
+        if (is_null($visitor->print_date)) {
+            $visitor->print_date = now();
+        }
+        // Always update who last printed the badge
+        $visitor->printed_by = auth()->id();
+        
+        $visitor->save();
+        
         return response()->json(['print_count' => $visitor->print_count]);
     }
 }

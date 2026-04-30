@@ -126,12 +126,26 @@ export const openPrintWindow = (form, badgeID, eventName, printBarcode = true, l
     #qrcode img { display: block; }
   </style>
   <script>
-    window.onload = function() {
-      ${initCode}
-      setTimeout(() => {
-        window.print();
-      }, 800);
-    };
+    function checkReady() {
+      const hasBC = document.getElementById('bc');
+      const hasQR = document.getElementById('qrcode');
+      
+      const bcReady = !hasBC || typeof JsBarcode === 'function';
+      const qrReady = !hasQR || typeof QRCode === 'function';
+
+      if (bcReady && qrReady) {
+        try {
+          ${initCode}
+        } catch(e) { console.error('Init failed', e); }
+        
+        setTimeout(() => {
+          window.print();
+        }, 800);
+      } else {
+        setTimeout(checkReady, 50);
+      }
+    }
+    window.onload = checkReady;
   </script>
   </head>
   <body>

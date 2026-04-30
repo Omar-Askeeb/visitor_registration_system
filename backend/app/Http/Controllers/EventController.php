@@ -314,4 +314,28 @@ class EventController extends Controller
             return response()->json(['message' => 'Failed to push data: ' . $e->getMessage()], 500);
         }
     }
+
+    /**
+     * Clean duplicates keeping only the first scan of the day.
+     */
+    public function cleanScansForDay(Request $request, Event $event): JsonResponse
+    {
+        $request->validate([
+            'scan_date' => 'required|date_format:Y-m-d'
+        ]);
+
+        $scanDate = $request->input('scan_date');
+        $prefix = \Illuminate\Support\Facades\DB::getTablePrefix();
+        $tableName = $prefix . $event->scans()->getModel()->getTable();
+
+        \Illuminate\Support\Facades\DB::delete("
+            DELETE t1 FROM {$tableName} t1
+            INNER JOIN {$tableName} t2 
+            WHERE t1.id > t2.id AND t1.barcode = t2.barcode 
+              AND DATE(t1.timestamp) = ? AND DATE(t2.timestamp) = ? 
+              AND t1.event_id = ?
+        ", [$scanDate, $scanDate, $event->id]);
+
+        return response()->json(['message' => 'Duplicates cleaned successfully for ' . $scanDate]);
+    }
 }

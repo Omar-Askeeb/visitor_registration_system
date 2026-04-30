@@ -299,8 +299,9 @@ const Dashboard = () => {
       {/* Detail Analytics Modal */}
       {selectedEvent && (
         <EventInsightsModal 
-          event={selectedEvent} 
+          event={data.events.find(e => e.id === selectedEvent.id) || selectedEvent} 
           onClose={() => setSelectedEvent(null)} 
+          onRefresh={load}
         />
       )}
 

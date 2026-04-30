@@ -37,8 +37,13 @@ class MediaAgentController extends Controller
      */
     public function incrementPrintCount(Event $event, MediaAgent $mediaAgent): JsonResponse
     {
-        $mediaAgent->increment('print_count');
-        return response()->json(['print_count' => $mediaAgent->print_count]);
+        $mediaAgent->print_count += 1;
+        if (is_null($mediaAgent->print_date)) {
+            $mediaAgent->print_date = now();
+        }
+        $mediaAgent->save();
+        
+        return response()->json(['print_count' => $mediaAgent->print_count, 'print_date' => $mediaAgent->print_date]);
     }
 
     /**

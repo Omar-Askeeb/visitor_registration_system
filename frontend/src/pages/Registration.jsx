@@ -387,7 +387,6 @@ const RegistrationForm = ({ event, onBack, countryOptions = [] }) => {
     setFormIDStatus('ok');
     setFieldsEnabled(true);
     setManualBadge(v.badgeID || '');
-    setPrePrinted(Boolean(v.badgeID));
     setEditingId(v.id);
     setSearchQuery('');
     setSearchResults([]);
@@ -418,7 +417,7 @@ const RegistrationForm = ({ event, onBack, countryOptions = [] }) => {
   };
 
   /* Determine effective badge ID */
-  const effectiveBadgeID = prePrinted ? manualBadge : autoBadgeID;
+  const effectiveBadgeID = editingId ? manualBadge : (prePrinted ? manualBadge : autoBadgeID);
 
   /* Save or update */
   const doSave = async (isPrinting = false) => {
@@ -481,6 +480,31 @@ const RegistrationForm = ({ event, onBack, countryOptions = [] }) => {
     if (res?.saved) handleClear();
   };
   const handlePrint        = async () => {
+    if (editingId) {
+      try {
+        setSaving(true);
+        const printRes = await fetch(`${API}/events/${event.id}/visitors/${editingId}/increment-print`, {
+          method: 'POST',
+          headers: { Accept: 'application/json' }
+        });
+        if (!printRes.ok) throw new Error('فشل تسجيل الطباعة');
+        
+        const visitorObj = {
+          ...form,
+          id: editingId,
+        };
+        const badgeID = manualBadge; 
+        
+        openPrintWindow(visitorObj, badgeID, event.name, true, mergeLayout(event.badge_layout));
+        handleClear();
+      } catch(e) {
+        notify('حدث خطأ أثناء الطباعة', 'error');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
     const res = await doSave(true);
     if (res?.saved) {
       let printBarcode = false;
@@ -564,7 +588,23 @@ const RegistrationForm = ({ event, onBack, countryOptions = [] }) => {
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
             <input
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              onChange={e => {
+                let val = e.target.value;
+                if (val.includes('/api/attendance/')) {
+                  val = val.split('/').pop().trim();
+                }
+                setSearchQuery(val);
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  let val = searchQuery;
+                  if (val.includes('http://') || val.includes('https://')) {
+                    val = val.split('/').filter(Boolean).pop();
+                    setSearchQuery(val);
+                  }
+                }
+              }}
               placeholder="ابحث بالاسم، الهاتف، أو رقم التسجيل الأونلاين..."
               dir="rtl"
               className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pr-9 pl-3 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/40 transition-all text-right"
@@ -833,7 +873,7 @@ const RegistrationForm = ({ event, onBack, countryOptions = [] }) => {
             <div className="flex items-center gap-3">
               <button
                 onClick={handlePrint}
-                disabled={!effectiveBadgeID}
+                disabled={saving || (!editingId && !effectiveBadgeID)}
                 className="flex items-center space-x-2 px-5 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:border-slate-300 dark:hover:border-slate-600 transition-all font-black text-xs uppercase tracking-widest disabled:opacity-40"
               >
                 <Printer className="h-4 w-4" />

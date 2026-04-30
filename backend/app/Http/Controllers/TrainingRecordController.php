@@ -35,9 +35,6 @@ class TrainingRecordController extends Controller
 
         $record = TrainingRecord::create($validated);
 
-        return response()->json([
-            'message' => 'Practice record saved',
-            'record'  => $record
-        ], 201);
+        return response()->json($record, 201);
     }
 }

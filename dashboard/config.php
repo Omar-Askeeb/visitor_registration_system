@@ -3,9 +3,9 @@
 // Database Configuration for the Dashboard
 
 $host = 'localhost';
-$dbname = 'libya_build'; // Change to your shared hosting DB name
-$user = 'root';          // Change to your shared hosting DB user
-$password = '';          // Change to your shared hosting DB password
+$dbname = 'u197845267_LB'; // Change to your shared hosting DB name
+$user = 'u197845267_remote';          // Change to your shared hosting DB user
+$password = 'Pass#4235';          // Change to your shared hosting DB password
 
 // Set timezone (adjust as needed)
 date_default_timezone_set('Africa/Tripoli');

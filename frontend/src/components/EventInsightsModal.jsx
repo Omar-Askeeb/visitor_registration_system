@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   X, 
   Users, 
@@ -11,14 +11,39 @@ import {
   Activity,
   History,
   AlertCircle,
-  FileText
+  FileText,
+  Loader2
 } from 'lucide-react';
 
-const EventInsightsModal = ({ event, onClose }) => {
+const EventInsightsModal = ({ event, onClose, onRefresh }) => {
+  const [cleaningDate, setCleaningDate] = useState(null);
+
   if (!event) return null;
 
   const attendanceRate = Math.round((event.total_attendance / (event.registered_count || 1)) * 100);
   const targetRate = Math.round((event.registered_count / (event.target_visitors || 1)) * 100);
+
+  const handleCleanDay = async (scanDate) => {
+    try {
+      setCleaningDate(scanDate);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/events/${event.id}/clean-scans-day`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ scan_date: scanDate })
+      });
+      if (res.ok) {
+        if (onRefresh) await onRefresh();
+      }
+    } catch(e) {
+      console.error(e);
+    } finally {
+      setCleaningDate(null);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-300">
@@ -128,23 +153,55 @@ const EventInsightsModal = ({ event, onClose }) => {
                       No Scan Data Detected
                    </div>
                 ) : (
-                  event.daily_stats.map((day, i) => (
-                    <div key={i} className="flex items-center justify-between p-4 bg-white dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-700/30 hover:-translate-y-1 transition-all group">
-                      <div className="flex items-center space-x-4">
-                        <div className="h-10 w-10 flex items-center justify-center bg-slate-100 dark:bg-slate-700 rounded-xl text-xs font-black text-slate-500">
-                          {i + 1}
+                  event.daily_stats.map((day, i) => {
+                    const hasDuplicates = day.raw_count > day.unique_count;
+                    const duplicatesCount = day.raw_count - day.unique_count;
+                    const isCleaningThis = cleaningDate === day.scan_date;
+
+                    return (
+                      <div key={i} className={`flex items-center justify-between p-4 bg-white dark:bg-slate-800/40 rounded-2xl border ${hasDuplicates ? 'border-orange-500/30 dark:border-orange-500/20 shadow-[0_0_15px_-3px_rgba(249,115,22,0.15)]' : 'border-slate-200 dark:border-slate-700/30'} hover:-translate-y-1 transition-all group`}>
+                        <div className="flex items-center space-x-4">
+                          <div className={`h-10 w-10 flex items-center justify-center ${hasDuplicates ? 'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500'} rounded-xl text-xs font-black`}>
+                            {i + 1}
+                          </div>
+                          <div>
+                            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Day of Event</div>
+                            <div className="text-sm font-black text-slate-900 dark:text-white uppercase">{new Date(day.scan_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Day of Event</div>
-                          <div className="text-sm font-black text-slate-900 dark:text-white uppercase">{new Date(day.scan_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</div>
+
+                        <div className="flex items-center space-x-6">
+                           <div className="text-right">
+                              <div className="text-[10px] font-black text-cyan-600 dark:text-cyan-400 uppercase tracking-widest mb-0.5">Unique Visitors</div>
+                              <div className="text-xl font-black text-slate-900 dark:text-white tabular-nums group-hover:text-cyan-500 transition-colors italic">{day.unique_count.toLocaleString()}</div>
+                           </div>
+                           
+                           {hasDuplicates ? (
+                             <div className="flex items-center border-l border-slate-200 dark:border-slate-700 pl-6 space-x-4">
+                                <div className="text-right">
+                                  <div className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-0.5">Duplicates</div>
+                                  <div className="text-sm font-black text-orange-600 dark:text-orange-400 tabular-nums italic">{duplicatesCount} detected</div>
+                                </div>
+                                <button 
+                                  onClick={() => handleCleanDay(day.scan_date)}
+                                  disabled={isCleaningThis}
+                                  className="h-10 px-4 rounded-xl flex items-center justify-center text-[10px] font-black uppercase tracking-widest text-white bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 focus:ring-2 focus:ring-orange-500/50 shadow-md shadow-orange-500/20 disabled:opacity-50 transition-all active:scale-95"
+                                >
+                                  {isCleaningThis ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Clean Duplicates'}
+                                </button>
+                             </div>
+                           ) : (
+                             <div className="flex items-center border-l border-slate-200 dark:border-slate-700 pl-6">
+                               <div className="flex items-center space-x-2 text-[10px] font-black text-emerald-500 uppercase tracking-widest">
+                                 <UserCheck className="h-4 w-4" />
+                                 <span>Cleaned</span>
+                               </div>
+                             </div>
+                           )}
                         </div>
                       </div>
-                      <div className="text-right">
-                         <div className="text-[10px] font-black text-cyan-600 dark:text-cyan-400 uppercase tracking-widest mb-0.5">Unique Visitors</div>
-                         <div className="text-xl font-black text-slate-900 dark:text-white tabular-nums group-hover:text-cyan-500 transition-colors italic">{day.unique_count.toLocaleString()}</div>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
