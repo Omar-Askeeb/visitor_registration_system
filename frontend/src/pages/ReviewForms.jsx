@@ -19,7 +19,10 @@ import {
   Calendar,
   Fingerprint,
   Mail,
+  ChevronDown,
 } from 'lucide-react';
+
+import CustomSelect from '../components/CustomSelect';
 
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -144,7 +147,7 @@ const ReviewForms = () => {
     try {
       await fetch(`${API}/events/${selectedEventId}/visitors/${v.id}/increment-print`, { method: 'POST' });
       const evt = events.find(e => e.id == selectedEventId);
-      openPrintWindow(v, v.badgeID, evt?.name || '');
+      openPrintWindow(v, v.badgeID, evt?.name || '', true, evt?.badge_layout);
     } catch (e) { console.error(e); }
   };
 
@@ -167,6 +170,20 @@ const ReviewForms = () => {
         <Icon className="h-3.5 w-3.5" />
         <span>{meta.label}</span>
       </div>
+    );
+  };
+
+  const getSourceBadge = (v) => {
+    const sources = {
+      online: { label: 'Online', color: 'blue' },
+      self_register: { label: 'Self Register', color: 'pink' },
+      onsite: { label: 'Onsite', color: 'emerald' }
+    };
+    const s = sources[v.online_source] || sources.onsite;
+    return (
+      <span className={`inline-flex items-center px-2 py-0.5 rounded border text-[9px] font-black uppercase tracking-widest shadow-sm bg-${s.color}-500/10 text-${s.color}-600 dark:text-${s.color}-400 border-${s.color}-500/20`}>
+        {s.label}
+      </span>
     );
   };
 
@@ -219,44 +236,23 @@ const ReviewForms = () => {
           />
         </div>
 
-        {/* Exhibition Filter */}
-        <div className="relative">
-          <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <select
-            value={selectedEventId}
-            onChange={(e) => setSelectedEventId(e.target.value)}
-            className="w-full pl-11 pr-4 py-3.5 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs font-bold focus:outline-none transition-all"
-          >
-            <option value="">All Exhibitions</option>
-            {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
-          </select>
-        </div>
+        <CustomSelect
+          value={selectedEventId}
+          options={[{ value: '', label: 'All Exhibitions' }, ...events.map(ev => ({ value: ev.id, label: ev.name }))]}
+          onChange={val => setSelectedEventId(val)}
+        />
 
-        {/* Personnel Filter */}
-        <div className="relative">
-          <User className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <select
-            value={selectedCreatorId}
-            onChange={(e) => setSelectedCreatorId(e.target.value)}
-            className="w-full pl-11 pr-4 py-3.5 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs font-bold focus:outline-none transition-all text-emerald-600 dark:text-emerald-400"
-          >
-            <option value="">By Personnel (All)</option>
-            {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
-        </div>
+        <CustomSelect
+          value={selectedCreatorId}
+          options={[{ value: '', label: 'By Personnel (All)' }, ...users.map(u => ({ value: u.id, label: u.name }))]}
+          onChange={val => setSelectedCreatorId(val)}
+        />
 
-        {/* Auditor Filter */}
-        <div className="relative">
-          <UserCheck className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <select
-            value={selectedAuditorId}
-            onChange={(e) => setSelectedAuditorId(e.target.value)}
-            className="w-full pl-11 pr-4 py-3.5 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs font-bold focus:outline-none transition-all text-indigo-600 dark:text-indigo-400"
-          >
-            <option value="">By Auditor (All)</option>
-            {users.filter(u => u.role !== 'data_entry').map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
-        </div>
+        <CustomSelect
+          value={selectedAuditorId}
+          options={[{ value: '', label: 'By Auditor (All)' }, ...users.filter(u => u.role !== 'data_entry').map(u => ({ value: u.id, label: u.name }))]}
+          onChange={val => setSelectedAuditorId(val)}
+        />
       </div>
 
       {/* Verification Status Pills */}
@@ -335,7 +331,10 @@ const ReviewForms = () => {
                     <span>{v.formID}</span>
                   </td>
                   <td className="px-6 py-6">
-                    <div className="font-black text-slate-900 dark:text-white text-[13px] leading-none mb-1.5">{v.visitorName}</div>
+                    <div className="font-black text-slate-900 dark:text-white text-[13px] leading-none mb-1.5 flex items-center space-x-2">
+                      <span>{v.visitorName}</span>
+                      {getSourceBadge(v)}
+                    </div>
                     <div className="flex items-center space-x-2">
                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{v.organisation || 'N/A'}</span>
                        {v.phone1 && (

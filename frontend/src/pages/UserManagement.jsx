@@ -5,16 +5,11 @@ import {
   Eye, EyeOff, UserCog, Phone, BarChart3, ExternalLink,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import BulkUserImportModal from '../components/BulkUserImportModal';
 
 const API = import.meta.env.VITE_API_URL || '/api';
 
-const ROLE_META = {
-  admin:      { label: 'Admin',       color: 'cyan',    desc: 'Full access — events, users, reports' },
-  data_entry: { label: 'Data Entry',  color: 'emerald', desc: 'Register visitors & print badges' },
-  auditor:    { label: 'Auditor',     color: 'purple',  desc: 'View & audit registered forms' },
-};
-
-const EMPTY_FORM = { name: '', email: '', phone: '', password: '', role: 'data_entry' };
+const EMPTY_FORM = { name: '', email: '', phone: '', password: '', role_id: '' };
 
 /* ─────── User Modal — at module level to avoid focus loss ─────── */
 const TextInput = ({ label, name, type = 'text', value, onChange, placeholder = '', autoComplete }) => (
@@ -28,8 +23,8 @@ const TextInput = ({ label, name, type = 'text', value, onChange, placeholder = 
   </div>
 );
 
-const UserModal = ({ user, onClose, onSave }) => {
-  const [form, setForm]         = useState(user ? { ...user, password: '' } : { ...EMPTY_FORM });
+const UserModal = ({ user, roles, onClose, onSave }) => {
+  const [form, setForm]         = useState(user ? { ...user, password: '', role_id: user.role_id || user.role?.id } : { ...EMPTY_FORM, role_id: roles[0]?.id });
   const [showPwd, setShowPwd]   = useState(false);
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState(null);
@@ -118,26 +113,22 @@ const UserModal = ({ user, onClose, onSave }) => {
           <div>
             <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 mb-2">Role *</label>
             <div className="grid grid-cols-3 gap-2">
-              {Object.entries(ROLE_META).map(([key, meta]) => (
+              {roles.map((r) => (
                 <button
-                  key={key} type="button"
-                  onClick={() => setForm(prev => ({ ...prev, role: key }))}
+                  key={r.id} type="button"
+                  onClick={() => setForm(prev => ({ ...prev, role_id: r.id }))}
                   className={`relative p-3 rounded-xl border text-left transition-all ${
-                    form.role === key
-                      ? `bg-${meta.color}-500/10 border-${meta.color}-500/40 text-${meta.color}-600 dark:text-${meta.color}-400`
+                    form.role_id === r.id
+                      ? `bg-${r.color || 'slate'}-500/10 border-${r.color || 'slate'}-500/40 text-${r.color || 'slate'}-600 dark:text-${r.color || 'slate'}-400`
                       : 'border-slate-200 dark:border-slate-700 text-slate-500 hover:border-slate-300 dark:hover:border-slate-600'
                   }`}
                 >
-                  <div className={`text-[10px] font-black uppercase tracking-widest mb-1 ${form.role === key ? '' : 'text-slate-600 dark:text-slate-400'}`}>
-                    {meta.label}
+                  <div className={`text-[10px] font-black uppercase tracking-widest mb-1 ${form.role_id === r.id ? '' : 'text-slate-600 dark:text-slate-400'}`}>
+                    {r.display_name}
                   </div>
-                  <div className="text-[9px] leading-tight opacity-70">{meta.desc}</div>
-                  {form.role === key && (
-                    <div className={`absolute top-2 right-2 h-2 w-2 rounded-full ${
-                      meta.color === 'cyan' ? 'bg-cyan-500' :
-                      meta.color === 'emerald' ? 'bg-emerald-500' :
-                      'bg-purple-500'
-                    }`} />
+                  <div className="text-[9px] leading-tight opacity-70">{r.description}</div>
+                  {form.role_id === r.id && (
+                    <div className={`absolute top-2 right-2 h-2 w-2 rounded-full bg-${r.color || 'slate'}-500`} />
                   )}
                 </button>
               ))}
@@ -199,18 +190,11 @@ const DeleteModal = ({ user, onClose, onDelete }) => {
 
 /* ─────── Role badge ─────── */
 const RoleBadge = ({ role }) => {
-  const m = ROLE_META[role] || { label: role, color: 'slate' };
-  const classes = {
-    cyan:    'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20',
-    emerald: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
-    purple:  'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
-    slate:   'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20'
-  };
-  const colorClass = classes[m.color] || classes.slate;
-  
+  if (!role) return <span className="text-xs text-slate-400">—</span>;
+  const color = role.color || 'slate';
   return (
-    <span className={`inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${colorClass}`}>
-      {m.label}
+    <span className={`inline-flex items-center px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border bg-${color}-500/10 text-${color}-600 dark:text-${color}-400 border-${color}-500/20`}>
+      {role.display_name}
     </span>
   );
 };
@@ -220,9 +204,11 @@ const RoleBadge = ({ role }) => {
 ═══════════════════════════════════ */
 const UserManagement = () => {
   const [users, setUsers]           = useState([]);
+  const [roles, setRoles]           = useState([]);
   const [loading, setLoading]       = useState(true);
   const [modalUser, setModalUser]   = useState(null);
   const [modalOpen, setModalOpen]   = useState(false);
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [toast, setToast]           = useState(null);
   const navigate = useNavigate();
@@ -232,14 +218,20 @@ const UserManagement = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => { 
+    fetchData(); 
+  }, []);
 
-  const fetchUsers = async () => {
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const r = await fetch(`${API}/users`, { headers: { Accept: 'application/json' } });
-      setUsers(await r.json());
-    } catch { setUsers([]); }
+      const [uRes, rRes] = await Promise.all([
+        fetch(`${API}/users`, { headers: { Accept: 'application/json' } }),
+        fetch(`${API}/roles`, { headers: { Accept: 'application/json' } })
+      ]);
+      setUsers(await uRes.json());
+      setRoles(await rRes.json());
+    } catch { setUsers([]); setRoles([]); }
     finally { setLoading(false); }
   };
 
@@ -259,11 +251,10 @@ const UserManagement = () => {
     notify('User deleted.', 'error');
   };
 
-  const counts = {
-    admin:      users.filter(u => u.role === 'admin').length,
-    data_entry: users.filter(u => u.role === 'data_entry').length,
-    auditor:    users.filter(u => u.role === 'auditor').length,
-  };
+  const counts = roles.reduce((acc, r) => {
+    acc[r.name] = users.filter(u => u.role?.id === r.id).length;
+    return acc;
+  }, {});
 
   return (
     <div className="flex-1 bg-white dark:bg-gradient-to-br dark:from-[#020617] dark:via-[#0f172a] dark:to-[#020617] text-slate-900 dark:text-slate-300 p-8 min-h-full transition-colors duration-300">
@@ -290,12 +281,20 @@ const UserManagement = () => {
             Manage system users and their access roles. Each user role controls what they can see and do.
           </p>
         </div>
-        <button
-          onClick={openCreate}
-          className="shrink-0 flex items-center space-x-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-black text-xs uppercase tracking-widest px-6 py-4 rounded-2xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:from-blue-400 hover:to-cyan-400 active:scale-95 transition-all duration-200"
-        >
-          <Plus className="h-4 w-4" /><span>New User</span>
-        </button>
+        <div className="flex items-center space-x-3 shrink-0">
+          <button
+            onClick={() => setBulkModalOpen(true)}
+            className="flex items-center space-x-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-black text-xs uppercase tracking-widest px-6 py-4 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-200"
+          >
+            <Users className="h-4 w-4" /><span>Bulk Import</span>
+          </button>
+          <button
+            onClick={openCreate}
+            className="flex items-center space-x-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-black text-xs uppercase tracking-widest px-6 py-4 rounded-2xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 hover:from-blue-400 hover:to-cyan-400 active:scale-95 transition-all duration-200"
+          >
+            <Plus className="h-4 w-4" /><span>New User</span>
+          </button>
+        </div>
       </header>
 
       {/* Role summary pills */}
@@ -303,8 +302,8 @@ const UserManagement = () => {
         {[
           { label: 'Total Users',  value: users.length,        color: 'slate' },
           { label: 'Training Sessions', value: users.reduce((acc, u) => acc + (parseInt(u.training_count) || 0), 0), color: 'purple' },
-          { label: 'Data Entry',   value: counts.data_entry,   color: 'emerald' },
-          { label: 'Auditors',     value: counts.auditor,      color: 'purple' },
+          { label: 'Data Entry',   value: counts['data_entry'] || 0,   color: 'emerald' },
+          { label: 'Auditors',     value: counts['auditor'] || 0,      color: 'purple' },
         ].map(s => (
           <div key={s.label} className="flex items-center space-x-2 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-3">
             <span className="text-lg font-black text-slate-900 dark:text-white tabular-nums">{s.value}</span>
@@ -314,14 +313,14 @@ const UserManagement = () => {
       </div>
 
       {/* Role legend cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-        {Object.entries(ROLE_META).map(([key, meta]) => (
-          <div key={key} className={`bg-${meta.color}-500/5 border border-${meta.color}-500/20 rounded-2xl p-4`}>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        {roles.map(r => (
+          <div key={r.id} className={`bg-${r.color || 'slate'}-500/5 border border-${r.color || 'slate'}-500/20 rounded-2xl p-4`}>
             <div className="flex items-center space-x-2 mb-2">
-              <ShieldCheck className={`h-4 w-4 text-${meta.color}-500`} />
-              <span className={`text-xs font-black uppercase tracking-widest text-${meta.color}-600 dark:text-${meta.color}-400`}>{meta.label}</span>
+              <ShieldCheck className={`h-4 w-4 text-${r.color || 'slate'}-500`} />
+              <span className={`text-xs font-black uppercase tracking-widest text-${r.color || 'slate'}-600 dark:text-${r.color || 'slate'}-400`}>{r.display_name}</span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">{meta.desc}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{r.description || 'Custom role'}</p>
           </div>
         ))}
       </div>
@@ -402,7 +401,7 @@ const UserManagement = () => {
                   <td className="px-6 py-4 text-xs">
                     <div className="flex items-center gap-4">
                       {/* Records Created (Data Entry Metric) */}
-                      {(u.role === 'admin' || u.role === 'data_entry') && (
+                      {(u.role?.name === 'admin' || u.role?.name === 'data_entry') && (
                         <div className="flex flex-col">
                           <span className="text-slate-400 font-bold uppercase text-[8px] tracking-tighter">Created</span>
                           <span className="font-black text-slate-900 dark:text-white leading-none">{u.visitors_created_count || 0}</span>
@@ -410,7 +409,7 @@ const UserManagement = () => {
                       )}
  
                       {/* Records Verified (Auditor Metric) */}
-                      {(u.role === 'admin' || u.role === 'auditor') && (
+                      {(u.role?.name === 'admin' || u.role?.name === 'auditor') && (
                          <div className="flex flex-col border-l border-slate-100 dark:border-slate-800/50 pl-3">
                            <span className="text-slate-400 font-bold uppercase text-[8px] tracking-tighter">Verified</span>
                            <span className="font-black text-cyan-600 dark:text-cyan-400 leading-none">{u.verified_records_count || 0}</span>
@@ -418,7 +417,7 @@ const UserManagement = () => {
                       )}
  
                       {/* Quality Score (Accuracy) */}
-                      {(u.role === 'admin' || u.role === 'data_entry') && (
+                      {(u.role?.name === 'admin' || u.role?.name === 'data_entry') && (
                         <div className="flex flex-col border-l border-slate-100 dark:border-slate-800/50 pl-3">
                           <span className="text-slate-400 font-bold uppercase text-[8px] tracking-tighter">Accuracy</span>
                           {(() => {
@@ -466,8 +465,18 @@ const UserManagement = () => {
         </div>
       )}
 
-      {modalOpen   && <UserModal   user={modalUser}     onClose={closeModal}              onSave={handleSave} />}
+      {modalOpen   && <UserModal   user={modalUser} roles={roles} onClose={closeModal} onSave={handleSave} />}
       {deleteTarget && <DeleteModal user={deleteTarget} onClose={() => setDeleteTarget(null)} onDelete={handleDelete} />}
+      {bulkModalOpen && (
+        <BulkUserImportModal
+          roles={roles}
+          onClose={() => setBulkModalOpen(false)}
+          onImportSuccess={(newUsers, msg) => {
+            setUsers(prev => [...newUsers, ...prev]);
+            notify(msg);
+          }}
+        />
+      )}
     </div>
   );
 };

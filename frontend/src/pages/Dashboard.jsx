@@ -23,16 +23,19 @@ import {
 } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import EventInsightsModal from '../components/EventInsightsModal';
 import PersonnelStatsModal from '../components/PersonnelStatsModal';
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [data, setData] = useState({ 
     events: [], 
     totals: { registered_count: 0, target_visitors: 0, total_attendance: 0 }, 
     top_personnel: [] 
   });
+  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [performanceUserId, setPerformanceUserId] = useState(null);
@@ -46,9 +49,11 @@ const Dashboard = () => {
         }
       });
       const json = await res.json();
+      if (!res.ok) throw new Error(json.message || 'Failed to load dashboard');
       setData(json);
     } catch (e) {
       console.error(e);
+      setError(e.message);
     } finally {
       setLoading(false);
     }
@@ -63,6 +68,19 @@ const Dashboard = () => {
       <div className="flex-1 bg-white dark:bg-[#020617] h-screen flex flex-col items-center justify-center space-y-4">
         <Loader2 className="h-12 w-12 text-cyan-500 animate-spin" />
         <span className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest animate-pulse">Loading Local Dashboard...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 bg-white dark:bg-[#020617] h-screen flex flex-col items-center justify-center space-y-4 p-8">
+        <div className="p-6 bg-red-500/10 border border-red-500/20 rounded-3xl text-center max-w-md">
+          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase mb-2">Access Denied</h2>
+          <p className="text-sm text-slate-500 mb-6">{error}</p>
+          <button onClick={() => window.location.reload()} className="px-8 py-3 bg-red-500 text-white rounded-xl font-bold text-xs uppercase tracking-widest">Retry Connection</button>
+        </div>
       </div>
     );
   }

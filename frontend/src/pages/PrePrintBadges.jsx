@@ -11,8 +11,10 @@ import {
   History,
   CheckCircle2,
   CalendarDays,
-  LayoutTemplate
+  LayoutTemplate,
+  ChevronDown,
 } from 'lucide-react';
+import CustomSelect from '../components/CustomSelect';
 import { useAuth } from '../context/AuthContext';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
@@ -237,18 +239,12 @@ const PrePrintBadges = () => {
             <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 dark:text-white mb-6 border-b border-slate-200 dark:border-slate-800 pb-3">New Generation Setting</h3>
             <form onSubmit={handleSaveAndCalculate} className="space-y-6">
               
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">Select Target Event</label>
-                <select 
-                  value={form.eventId} 
-                  onChange={e => setForm({...form, eventId: e.target.value})}
-                  className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
-                >
-                  {events.map(ev => (
-                    <option key={ev.id} value={ev.id}>{ev.name} (Prefix: {ev.badge_id_prefix})</option>
-                  ))}
-                </select>
-              </div>
+              <CustomSelect
+                label="Select Target Event"
+                value={form.eventId}
+                options={events.map(ev => ({ value: ev.id, label: `${ev.name} (Prefix: ${ev.badge_id_prefix})` }))}
+                onChange={val => setForm({...form, eventId: val})}
+              />
 
               <div className="grid grid-cols-2 gap-4">
                 <div>

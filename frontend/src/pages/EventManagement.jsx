@@ -20,9 +20,11 @@ import {
   RefreshCcw,
   Timer,
   UploadCloud,
+  ArrowRight,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import CustomSelect from '../components/CustomSelect';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
@@ -41,6 +43,7 @@ const EMPTY_FORM = {
   badge_id_prefix: '',
   form_id_prefix: '',
   online_reg_prefix: '',
+  self_service_prefix: '',
   target_visitors: '',
   status: 'upcoming',
   notes: '',
@@ -49,8 +52,23 @@ const EMPTY_FORM = {
   sync_url: '',
   sync_interval: 1,
   sync_countdown: 120,
-  workfield_options: ['العمارة', 'مواد البناء', 'الصناديق والمؤسسات المالية', 'ديكور داخلي', 'أعمال ميكانيكية', 'عقارات'],
-  howexpo_options: ['البريد الإلكتروني', 'الفيسبوك', 'تويتر', 'الانستقرام', 'الرسائل القصيرة / وتس اب', 'محركات البحث', 'التلفزيون / الراديو'],
+  workfield_options: [
+    {"ar": "العمارة", "en": "Architecture"},
+    {"ar": "مواد البناء", "en": "Building Materials"},
+    {"ar": "الصناديق والمؤسسات المالية", "en": "Funds & Financial Institutions"},
+    {"ar": "ديكور داخلي", "en": "Interior Design"},
+    {"ar": "أعمال ميكانيكية", "en": "Mechanical Works"},
+    {"ar": "عقارات", "en": "Real Estate"}
+  ],
+  howexpo_options: [
+    {"ar": "البريد الإلكتروني", "en": "Email"},
+    {"ar": "الفيسبوك", "en": "Facebook"},
+    {"ar": "تويتر", "en": "Twitter"},
+    {"ar": "الانستقرام", "en": "Instagram"},
+    {"ar": "الرسائل القصيرة / وتس اب", "en": "SMS / WhatsApp"},
+    {"ar": "محركات البحث", "en": "Search Engines"},
+    {"ar": "التلفزيون / الراديو", "en": "TV / Radio"}
+  ],
   is_training: false,
 };
 
@@ -81,15 +99,60 @@ const Field = ({ label, name, type = 'text', placeholder = '', icon: Icon, hint,
   </div>
 );
 
+const DateField = ({ label, name, value, onChange, icon: Icon }) => {
+  const displayValue = value ? value.split('-').reverse().join('/') : '';
+  const inputRef = React.useRef();
+
+  return (
+    <div className="w-full">
+      <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 mb-2">
+        {label}
+      </label>
+      <div className="relative group">
+        {Icon && (
+          <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-600 pointer-events-none z-10" />
+        )}
+        <div className="relative">
+          <input
+            type="text"
+            readOnly
+            value={displayValue}
+            onClick={() => inputRef.current?.showPicker()}
+            placeholder="DD/MM/YYYY"
+            className={`w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-xl py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/40 focus:border-cyan-500/50 transition-all cursor-pointer ${Icon ? 'pl-10 pr-10' : 'px-4'}`}
+          />
+          <input
+            type="date"
+            name={name}
+            ref={inputRef}
+            value={value || ''}
+            onChange={onChange}
+            className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+            style={{ pointerEvents: 'none', visibility: 'hidden', position: 'absolute' }}
+          />
+          <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-cyan-500 transition-colors pointer-events-none">
+            <Calendar className="h-4 w-4" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ListEditor = ({ label, items = [], onUpdate, placeholder = "Add new..." }) => {
-  const [inputValue, setInputValue] = useState('');
+  const [arValue, setArValue] = useState('');
+  const [enValue, setEnValue] = useState('');
   const safeItems = Array.isArray(items) ? items : [];
 
   const addItem = () => {
-    const val = inputValue.trim();
-    if (val && !safeItems.includes(val)) {
-      onUpdate([...safeItems, val]);
-      setInputValue('');
+    const ar = arValue.trim();
+    const en = enValue.trim();
+    if (ar && en) {
+      if (!safeItems.find(i => (typeof i === 'object' && (i.ar === ar || i.en === en)) || i === ar)) {
+        onUpdate([...safeItems, { ar, en }]);
+        setArValue('');
+        setEnValue('');
+      }
     }
   };
 
@@ -104,21 +167,37 @@ const ListEditor = ({ label, items = [], onUpdate, placeholder = "Add new..." })
       </label>
       <div className="flex flex-wrap gap-2 mb-2 min-h-[40px] p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">
         {safeItems.length === 0 && <span className="text-xs text-slate-400 italic">No items added yet.</span>}
-        {safeItems.map(item => (
-          <span key={item} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300">
-            {item}
-            <button type="button" onClick={() => removeItem(item)} className="text-slate-400 hover:text-red-500 transition-colors">
-              <X className="h-3 w-3" />
-            </button>
-          </span>
-        ))}
+        {safeItems.map((item, idx) => {
+          const isObj = typeof item === 'object' && item !== null;
+          const arLabel = isObj ? item.ar : item;
+          const enLabel = isObj ? item.en : '';
+          return (
+            <span key={idx} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-300">
+              <span className="text-cyan-500">{arLabel}</span>
+              {enLabel && (
+                <>
+                  <span className="text-slate-400 mx-1">|</span>
+                  <span>{enLabel}</span>
+                </>
+              )}
+              <button type="button" onClick={() => removeItem(item)} className="ml-1 text-slate-400 hover:text-red-500 transition-colors">
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          );
+        })}
       </div>
       <div className="flex gap-2">
         <input
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addItem())}
-          placeholder={placeholder}
+          value={arValue}
+          onChange={(e) => setArValue(e.target.value)}
+          placeholder="Arabic..."
+          className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
+        />
+        <input
+          value={enValue}
+          onChange={(e) => setEnValue(e.target.value)}
+          placeholder="English..."
           className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/40"
         />
         <button
@@ -150,6 +229,8 @@ const EventModal = ({ event, onClose, onSave }) => {
     return {
       ...EMPTY_FORM,
       ...event,
+      start_date: event.start_date ? new Date(event.start_date).toISOString().split('T')[0] : '',
+      end_date:   event.end_date   ? new Date(event.end_date).toISOString().split('T')[0] : '',
       workfield_options: parseList(event.workfield_options, EMPTY_FORM.workfield_options),
       howexpo_options:   parseList(event.howexpo_options,   EMPTY_FORM.howexpo_options),
     };
@@ -240,9 +321,9 @@ const EventModal = ({ event, onClose, onSave }) => {
               <Field label="Location" name="location" icon={MapPin} placeholder="e.g. Tripoli International Fairground"
                      value={form.location} onChange={handle} />
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Start Date" name="start_date" type="date" icon={Calendar}
+                <DateField label="Start Date" name="start_date" icon={Calendar}
                        value={form.start_date} onChange={handle} />
-                <Field label="End Date"   name="end_date"   type="date" icon={Calendar}
+                <DateField label="End Date"   name="end_date"   icon={Calendar}
                        value={form.end_date} onChange={handle} />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -253,21 +334,16 @@ const EventModal = ({ event, onClose, onSave }) => {
               </div>
 
               {/* Status select */}
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 mb-2">
-                  Status
-                </label>
-                <select
-                  name="status"
-                  value={form.status}
-                  onChange={handle}
-                  className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-xl px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/40 transition-all"
-                >
-                  <option value="upcoming">Upcoming</option>
-                  <option value="active">Active</option>
-                  <option value="completed">Completed</option>
-                </select>
-              </div>
+              <CustomSelect
+                label="Status"
+                value={form.status}
+                options={[
+                  { value: 'upcoming', label: 'Upcoming' },
+                  { value: 'active', label: 'Active' },
+                  { value: 'completed', label: 'Completed' }
+                ]}
+                onChange={val => setForm(prev => ({ ...prev, status: val }))}
+              />
 
               {/* Notes textarea */}
               <div>
@@ -311,6 +387,11 @@ const EventModal = ({ event, onClose, onSave }) => {
                 label="Online Registration Prefix *" name="online_reg_prefix" icon={Globe} placeholder="e.g. ON-"
                 hint="Used for online pre-registered visitors. Generated format: ON-0001"
                 value={form.online_reg_prefix} onChange={handle}
+              />
+              <Field
+                label="Self-Service Prefix" name="self_service_prefix" icon={Fingerprint} placeholder="e.g. SS-"
+                hint="Used by self-service app for visitor formIDs. Generated format: SS-0001"
+                value={form.self_service_prefix} onChange={handle}
               />
             </div>
           </div>
@@ -362,6 +443,36 @@ const EventModal = ({ event, onClose, onSave }) => {
                   value={form.sync_countdown} onChange={handle}
                 />
               </div>
+            </div>
+
+            <div className="border-t border-slate-100 dark:border-slate-800 my-6" />
+
+            {/* ── Push Synchronization ── */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-[10px] font-black uppercase tracking-[0.25em] text-cyan-600 dark:text-cyan-500">
+                Push Synchronization (Outgoing)
+              </div>
+              <label className="flex items-center cursor-pointer group">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mr-3 group-hover:text-slate-300 transition-colors">Enabled</span>
+                <div className="relative">
+                  <input 
+                    type="checkbox" 
+                    name="sync_push_enabled" 
+                    checked={form.sync_push_enabled || false} 
+                    onChange={handle}
+                    className="sr-only" 
+                  />
+                  <div className={`block w-10 h-6 rounded-full transition-colors ${form.sync_push_enabled ? 'bg-cyan-500' : 'bg-slate-700'}`}></div>
+                  <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${form.sync_push_enabled ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                </div>
+              </label>
+            </div>
+            <div className="grid grid-cols-1 gap-4">
+              <Field
+                label="Push API URL" name="sync_push_url" icon={ArrowRight} placeholder="https://eventxcrm.com/api/register-visitor-onsite"
+                hint="API endpoint to send on-site registrations to."
+                value={form.sync_push_url || ''} onChange={handle}
+              />
             </div>
           </div>
 
@@ -539,7 +650,11 @@ const EventCard = ({ event, onEdit, onDelete, isReadOnly, onNotify }) => {
 
   const formatDate = (d) => {
     if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const date = new Date(d);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
   };
 
   return (
@@ -627,6 +742,12 @@ const EventCard = ({ event, onEdit, onDelete, isReadOnly, onNotify }) => {
           <div className="flex items-center space-x-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-1.5">
             <Globe className="h-3 w-3 text-emerald-500" />
             <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 tracking-widest">{event.online_reg_prefix}####</span>
+          </div>
+        )}
+        {event.self_service_prefix && (
+          <div className="flex items-center space-x-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-1.5">
+            <Fingerprint className="h-3 w-3 text-amber-500" />
+            <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 tracking-widest text-amber-600">{event.self_service_prefix}####</span>
           </div>
         )}
       </div>

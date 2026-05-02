@@ -7,6 +7,7 @@ use App\Http\Controllers\EventController;
 use App\Http\Controllers\VisitorController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\MediaAgentController;
+use App\Http\Controllers\BackupController;
 
 
 // --- Public Auth ---
@@ -21,15 +22,33 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+    Route::put('/profile', [AuthController::class, 'updateProfile']);
 
     // Admin Only
     Route::middleware('role:admin')->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index']);
         Route::apiResource('users', UserController::class)->except(['index', 'show']);
+        Route::post('/users/bulk', [UserController::class, 'bulkImport']);
+        Route::get('/roles/permissions', [\App\Http\Controllers\RoleController::class, 'permissions']);
+        Route::apiResource('roles', \App\Http\Controllers\RoleController::class)->except(['show']);
         Route::apiResource('events', EventController::class)->except(['index', 'show']);
         Route::post('/events/{event}/clean-scans-day', [EventController::class, 'cleanScansForDay']);
         Route::get('/logs', [UserController::class, 'logs']);
         Route::get('/users/{user}/performance', [UserController::class, 'performance']);
+
+        // Exhibitor management (admin only)
+        Route::get('/exhibitors',                                     [\App\Http\Controllers\ExhibitorController::class, 'index']);
+        Route::post('/exhibitors',                                    [\App\Http\Controllers\ExhibitorController::class, 'store']);
+        Route::put('/exhibitors/{exhibitor}',                         [\App\Http\Controllers\ExhibitorController::class, 'update']);
+        Route::delete('/exhibitors/{exhibitor}',                      [\App\Http\Controllers\ExhibitorController::class, 'destroy']);
+        Route::post('/exhibitors/bulk',                               [\App\Http\Controllers\ExhibitorController::class, 'bulkImport']);
+        Route::post('/exhibitors/mark-printed',                       [\App\Http\Controllers\ExhibitorController::class, 'markPrinted']);
+        Route::post('/exhibitors/{exhibitor}/mark-received',          [\App\Http\Controllers\ExhibitorController::class, 'markReceived']);
+        Route::post('/exhibitors/{exhibitor}/toggle-vip-received',   [\App\Http\Controllers\ExhibitorController::class, 'toggleVIPReceived']);
+
+        // Backup & Restore
+        Route::get('/backup/export', [BackupController::class, 'export']);
+        Route::post('/backup/import', [BackupController::class, 'import']);
     });
 
     // Everyone can view events and users list

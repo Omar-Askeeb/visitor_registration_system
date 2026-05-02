@@ -74,14 +74,15 @@ class SyncVisitors extends Command
                 $requiredSeconds = ($event->sync_interval * 60) - 5; // 5s grace for scheduling jitter
 
                 if ($secondsSinceLast < $requiredSeconds) {
-                    $this->info("Skipping {$event->name}: Interval ({$event->sync_interval}m) not reached ({$secondsSinceLast}s elapsed).");
+                    $this->comment("Heartbeat: {$event->name} sync interval not reached yet (" . ($requiredSeconds - $secondsSinceLast) . "s remaining).");
                     return;
                 }
             }
 
-            $fromDate = $lastLog ? $lastLog->last_sync_date->format('Y-m-d') : '2026-04-01';
+            $isFirstSync = !$lastLog;
+            $fromDate = $lastLog ? $lastLog->last_sync_date->format('Y-m-d') : null;
             $page = 1;
-            $perPage = 500;
+            $perPage = 100;
             $totalFetched = 0;
             $totalAdded = 0;
 
@@ -90,10 +91,10 @@ class SyncVisitors extends Command
                 
                 // Replace placeholders
                 $placeholders = [
-                    '{slug}' => $event->online_slug,
-                    '{page}' => $page,
-                    '{per_page}' => $perPage,
-                    '{from_date}' => $fromDate,
+                    '{slug}'       => $event->online_slug,
+                    '{page}'       => $page,
+                    '{per_page}'   => $perPage,
+                    '{from_date}'  => $fromDate ?? '',
                 ];
 
                 $finalUrl = str_replace(array_keys($placeholders), array_values($placeholders), $url);
@@ -102,9 +103,12 @@ class SyncVisitors extends Command
                 $params = [];
                 if (!str_contains($url, '{per_page}')) $params['per_page'] = $perPage;
                 if (!str_contains($url, '{page}'))     $params['page'] = $page;
-                if (!str_contains($url, '{from_date}')) $params['from_date'] = $fromDate;
+                // Only add from_date if this is NOT the first sync
+                if (!$isFirstSync && !str_contains($url, '{from_date}') && $fromDate) {
+                    $params['from_date'] = $fromDate;
+                }
 
-                $response = Http::get($finalUrl, $params);
+                $response = Http::timeout(120)->get($finalUrl, $params);
 
                 if (!$response->successful()) {
                     throw new \Exception("API request failed: " . $response->body());
@@ -118,7 +122,7 @@ class SyncVisitors extends Command
                 foreach ($visitorsData as $data) {
                     $totalFetched++;
 
-                    // Check if already exists
+                    // Check if already exists (by reference_code / onlineRegID)
                     $exists = Visitor::where('onlineRegID', $data['reference_code'])->exists();
                     if ($exists) {
                         continue;
@@ -207,8 +211,10 @@ class SyncVisitors extends Command
             'nationality' => $data['country'],
             'workfield' => $data['sectors'] ? array_map('trim', explode(',', $data['sectors'])) : [],
             'howexpo' => $data['marketing'] ? array_map('trim', explode(',', $data['marketing'])) : [],
-            'online_source' => $data['source'],
+            'online_source'     => $data['source'] ?? 'online',
+            'visitor_source'    => 'online',
             'online_created_at' => Carbon::parse($data['created_at']),
+            'email_send_status' => 'skipped',
         ]);
     }
 }

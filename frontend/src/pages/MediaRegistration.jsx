@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   CalendarDays, MapPin, ArrowRight, Loader2, Search,
   CheckCircle2, AlertTriangle, X, Printer,
-  Save, Eraser, RefreshCw
+  Save, Eraser, RefreshCw, ChevronDown
 } from 'lucide-react';
+import CustomSelect from '../components/CustomSelect';
 import { openPrintWindow } from '../utils/printBadge';
 
 const API = import.meta.env.VITE_API_URL || '/api';
@@ -128,24 +129,71 @@ const ArabicInput = ({ label, name, type = 'text', value, onChange, onKeyDown, d
   );
 };
 
-const ArabicSelect = ({ label, name, value, onChange, onKeyDown, disabled, inputRef, options }) => (
-  <div>
-    <label className="block text-[11px] font-black text-slate-500 dark:text-slate-400 mb-1.5 text-right">
-      {label}:
-    </label>
-    <select
-      ref={inputRef}
-      name={name}
-      value={value ?? ''}
-      onChange={onChange}
-      onKeyDown={onKeyDown}
-      disabled={disabled}
-      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white text-right focus:outline-none focus:ring-2 focus:ring-cyan-500/40 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-    >
-      {options.map(o => <option key={o} value={o}>{o}</option>)}
-    </select>
-  </div>
-);
+const ArabicSelect = ({ label, name, value, onChange, disabled, options }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="flex flex-col" ref={containerRef}>
+      <label className="block text-[11px] font-black text-slate-500 dark:text-slate-400 mb-1.5 text-right">
+        {label}:
+      </label>
+      <div className="relative">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setIsOpen(!isOpen)}
+          className={`w-full flex items-center justify-between bg-white dark:bg-slate-900 border ${
+            isOpen 
+              ? 'border-cyan-500 ring-4 ring-cyan-500/10' 
+              : 'border-slate-200 dark:border-slate-700'
+          } rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white transition-all duration-300 disabled:opacity-40`}
+          dir="rtl"
+        >
+          <span className="font-semibold">{value}</span>
+          <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-500 ${isOpen ? 'rotate-180 text-cyan-500' : ''}`} />
+        </button>
+
+        {isOpen && (
+          <div className="absolute z-[100] mt-2 w-full bg-white dark:bg-[#0c1325] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl overflow-hidden p-1.5 animate-in fade-in zoom-in-95 duration-300" dir="rtl">
+            <div className="max-h-60 overflow-y-auto custom-scrollbar">
+              {options.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => {
+                    onChange({ target: { name, value: opt } });
+                    setIsOpen(false);
+                  }}
+                  className={`w-full text-right px-4 py-2.5 text-sm rounded-xl transition-all duration-200 flex items-center justify-between ${
+                    value === opt
+                      ? 'bg-gradient-to-l from-cyan-500 to-blue-600 text-white font-bold'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <span>{opt}</span>
+                  {value === opt && (
+                    <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 /* ═══════════════════════════════════════════════════
    PHASE B — Registration Form
@@ -279,11 +327,12 @@ const RegistrationForm = ({ event, onBack, countryOptions = [] }) => {
 
       if (print) {
         const printData = { visitorName: data.first_name, surName: data.last_name };
+        const layout = event.badge_layout?.visitor || event.badge_layout || {};
         openPrintWindow(printData, null, event.name, false, {
-           ...event.badge_layout,
-           name: { ...(event.badge_layout?.name || {}), show: true },
-           barcode: { ...(event.badge_layout?.barcode || {}), show: false },
-           qrCode: { ...(event.badge_layout?.qrCode || {}), show: false }
+           ...layout,
+           name: { ...(layout.name || {}), show: true },
+           barcode: { ...(layout.barcode || {}), show: false },
+           qrCode: { ...(layout.qrCode || {}), show: false }
         });
       }
 

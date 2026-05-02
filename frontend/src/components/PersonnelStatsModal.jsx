@@ -9,8 +9,10 @@ import {
   ChevronRight,
   Filter,
   BarChart3,
-  Award
+  Award,
+  ChevronDown,
 } from 'lucide-react';
+import CustomSelect from './CustomSelect';
 
 const PersonnelStatsModal = ({ userId, events, onClose }) => {
   const [loading, setLoading] = useState(true);
@@ -78,15 +80,11 @@ const PersonnelStatsModal = ({ userId, events, onClose }) => {
                 <span className="text-xs font-black uppercase text-slate-500 dark:text-slate-400">Filter Dataset</span>
              </div>
              <div className="flex-1 w-full md:max-w-xs relative">
-                <select 
-                  value={selectedEventId}
-                  onChange={(e) => setSelectedEventId(e.target.value)}
-                  className="w-full pl-4 pr-10 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-[11px] font-black uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition-all appearance-none"
-                >
-                   <option value="">All Exhibitions</option>
-                   {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
-                </select>
-                <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 rotate-90 pointer-events-none" />
+                <CustomSelect
+                   value={selectedEventId}
+                   options={[{ value: '', label: 'All Exhibitions' }, ...events.map(ev => ({ value: ev.id, label: ev.name }))]}
+                   onChange={val => setSelectedEventId(val)}
+                />
              </div>
           </div>
 

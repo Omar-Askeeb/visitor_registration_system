@@ -16,7 +16,7 @@ class User extends Authenticatable
         'email',
         'phone',
         'password',
-        'role',
+        'role_id',
     ];
 
     protected $hidden = [
@@ -47,5 +47,10 @@ class User extends Authenticatable
     public function verifiedRecords()
     {
         return $this->hasMany(\App\Models\Visitor::class, 'verified_by_id');
+    }
+
+    public function role()
+    {
+        return $this->belongsTo(Role::class);
     }
 }

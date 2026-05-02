@@ -13,7 +13,7 @@ class UserController extends Controller
 {
     public function index(): JsonResponse
     {
-        $users = User::withCount([
+        $users = User::with('role')->withCount([
             'visitorsCreated as visitors_created_count',
             'visitorsModified as visitors_updated_count',
             'fixedRecords as fixed_records_count',
@@ -36,13 +36,13 @@ class UserController extends Controller
             'email'    => 'required|email|unique:users,email',
             'phone'    => 'nullable|string|max:30|unique:users,phone',
             'password' => 'required|string|min:6',
-            'role'     => 'required|in:admin,data_entry,auditor',
+            'role_id'  => 'required|exists:roles,id',
         ]);
 
         $validated['password'] = Hash::make($validated['password']);
         $user = User::create($validated);
 
-        return response()->json($user->only(['id', 'name', 'email', 'phone', 'role', 'created_at']), 201);
+        return response()->json($user->load('role'), 201);
     }
 
     public function update(Request $request, User $user): JsonResponse
@@ -52,7 +52,7 @@ class UserController extends Controller
             'email'    => 'sometimes|required|email|unique:users,email,' . $user->id,
             'phone'    => 'nullable|string|max:30|unique:users,phone,' . $user->id,
             'password' => 'nullable|string|min:6',
-            'role'     => 'sometimes|required|in:admin,data_entry,auditor',
+            'role_id'  => 'sometimes|required|exists:roles,id',
         ]);
 
         if (!empty($validated['password'])) {
@@ -63,7 +63,7 @@ class UserController extends Controller
 
         $user->update($validated);
 
-        return response()->json($user->only(['id', 'name', 'email', 'phone', 'role', 'created_at']));
+        return response()->json($user->load('role'));
     }
 
     public function destroy(User $user): JsonResponse
@@ -99,7 +99,7 @@ class UserController extends Controller
 
     public function logs(Request $request): JsonResponse
     {
-        $logs = ActivityLog::with('user:id,name,role')
+        $logs = ActivityLog::with('user:id,name,role_id')
             ->orderByDesc('created_at')
             ->when($request->user_id, fn($q) => $q->where('user_id', $request->user_id))
             ->when($request->action,  fn($q) => $q->where('action', $request->action))
@@ -107,5 +107,30 @@ class UserController extends Controller
             ->get();
 
         return response()->json($logs);
+    }
+
+    public function bulkImport(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'users' => 'required|array',
+            'users.*.name' => 'required|string|max:255',
+            'users.*.email' => 'required|email|unique:users,email',
+            'users.*.phone' => 'nullable|string|max:30',
+            'users.*.password' => 'required|string|min:6',
+            'users.*.role_id' => 'required|exists:roles,id',
+        ]);
+
+        $createdUsers = [];
+        DB::transaction(function () use ($validated, &$createdUsers) {
+            foreach ($validated['users'] as $userData) {
+                $userData['password'] = Hash::make($userData['password']);
+                $createdUsers[] = User::create($userData);
+            }
+        });
+
+        return response()->json([
+            'message' => count($createdUsers) . ' users created successfully.',
+            'users' => User::with('role')->whereIn('id', collect($createdUsers)->pluck('id'))->get()
+        ], 201);
     }
 }

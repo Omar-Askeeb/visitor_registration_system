@@ -43,6 +43,7 @@ class Visitor extends Model
         'verification_type',
         'verification_notes',
         'online_source',
+        'visitor_source',
         'online_created_at',
         'external_sync_status',
         'external_sync_id',
@@ -73,9 +74,14 @@ class Visitor extends Model
                 return;
             }
 
-            // Skip if the event is in training mode
-            $event = \App\Models\Event::find($visitor->event_id);
-            if ($event && $event->is_training) {
+            // Skip if the event is in training mode or has Push Sync disabled
+            $event = $visitor->event; // Use relationship
+            if (!$event || $event->is_training || !$event->sync_push_enabled) {
+                return;
+            }
+
+            // Only push visitors with source 'onsite' or 'self-service'
+            if ($visitor->visitor_source === 'online') {
                 return;
             }
 

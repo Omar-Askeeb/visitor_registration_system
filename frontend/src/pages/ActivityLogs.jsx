@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, User2, RefreshCw, Search, Filter, Loader2, AlertTriangle } from 'lucide-react';
+import { Shield, User2, RefreshCw, Search, Filter, Loader2, AlertTriangle, ChevronDown } from 'lucide-react';
+import CustomSelect from '../components/CustomSelect';
 import { useAuth } from '../context/AuthContext';
 
 const ACTION_LABELS = {
@@ -90,18 +91,15 @@ const ActivityLogs = () => {
             className="w-full bg-slate-100 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 pr-10 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50 transition-all"
           />
         </div>
-        <div className="relative">
-          <Filter className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-          <select
+        <div className="min-w-[180px]">
+          <CustomSelect
             value={filterAction}
-            onChange={e => setFilterAction(e.target.value)}
-            className="bg-slate-100 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 pr-10 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500/30 transition-all appearance-none"
-          >
-            <option value="">كل الإجراءات</option>
-            {Object.entries(ACTION_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>{v.label}</option>
-            ))}
-          </select>
+            options={[
+              { value: '', label: 'كل الإجراءات' },
+              ...Object.entries(ACTION_LABELS).map(([k, v]) => ({ value: k, label: v.label }))
+            ]}
+            onChange={val => setFilterAction(val)}
+          />
         </div>
       </div>
 

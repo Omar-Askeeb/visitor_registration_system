@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: 21cm 29cm; margin: 0; }
+  body { font-family: 'Arial', 'Tahoma', sans-serif; margin: 0; padding: 0; background: #eee; }
+  .badge-page { position: relative; page-break-after: always; overflow: hidden; background: white; margin: 0 auto; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+  .badge-page:last-child { page-break-after: avoid; }
+  .printable-text-area { position: absolute; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 0.5cm; border: 1px solid red; }
+  .company-name { font-weight: 900; overflow: hidden; line-height: 1.2; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; white-space: pre-wrap; width: 100%; border: 1px solid blue; }
+  .emp-name     { font-weight: 700; overflow: hidden; white-space: nowrap; text-align: center; width: 100%; }
+</style>
+</head>
+<body>
+  <div class="badge-page" style="width: 21cm; height: 29cm;">
+    <div class="printable-text-area" style="top: 4.5cm; left: 6cm; width: 9cm; height: 5.5cm;">
+      <div class="company-name" style="font-size: 22pt;" dir="rtl">شركة النورس لاستيراد معدات تجهيز المطاعم والفنادق والمقاهي</div>
+      <div class="company-name" style="font-size: 22pt;">Elnwris Company</div>
+    </div>
+  </div>
+</body>
+</html>

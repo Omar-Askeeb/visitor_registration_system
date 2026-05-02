@@ -6,6 +6,8 @@ import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import Registration from './pages/Registration';
 import UserManagement from './pages/UserManagement';
+import RolesManagement from './pages/RolesManagement';
+import Exhibitors from './pages/Exhibitors';
 import ReviewForms from './pages/ReviewForms';
 import SyncRecords from './pages/SyncRecords';
 import Settings from './pages/Settings';
@@ -16,13 +18,18 @@ import AuditCorrection from './pages/AuditCorrection';
 import PrePrintBadges from './pages/PrePrintBadges';
 import PrePrintForms from './pages/PrePrintForms';
 import MediaRegistration from './pages/MediaRegistration';
+import Profile from './pages/Profile';
 
 
-function ProtectedRoute({ element, allowedRoles }) {
+function ProtectedRoute({ element, requiredPermission }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/" replace />;
+  
+  if (requiredPermission) {
+    const hasPerm = user.role?.name === 'admin' || user.role?.permissions?.some(p => p.name === requiredPermission);
+    if (!hasPerm) {
+      return <Navigate to="/profile" replace />;
+    }
   }
   return element;
 }
@@ -33,10 +40,14 @@ function App() {
 
   const getDefaultRoute = () => {
     if (!user) return '/login';
-    if (user.role === 'admin') return '/dashboard';
-    if (user.role === 'data_entry') return '/events';
-    if (user.role === 'auditor') return '/reviews';
-    return '/login';
+    const perms = user.role?.permissions || [];
+    const has = (n) => perms.some(p => p.name === n) || user.role?.name === 'admin';
+
+    if (has('view_dashboard')) return '/dashboard';
+    if (has('view_events')) return '/events';
+    if (has('review_queue')) return '/reviews';
+    if (has('register_visitors')) return '/registration';
+    return '/profile';
   };
 
   return (
@@ -65,21 +76,24 @@ function App() {
             <Route path="/login" element={!user ? <Login /> : <Navigate to="/" replace />} />
             <Route path="/" element={<Navigate to={getDefaultRoute()} replace />} />
             
-            <Route path="/dashboard" element={<ProtectedRoute element={<Dashboard />} allowedRoles={['admin']} />} />
-            <Route path="/users" element={<ProtectedRoute element={<UserManagement />} allowedRoles={['admin']} />} />
-            <Route path="/settings" element={<ProtectedRoute element={<Settings />} allowedRoles={['admin']} />} />
-            <Route path="/sync" element={<ProtectedRoute element={<SyncRecords />} allowedRoles={['admin']} />} />
-            <Route path="/logs" element={<ProtectedRoute element={<ActivityLogs />} allowedRoles={['admin']} />} />
-            <Route path="/pre-print" element={<ProtectedRoute element={<PrePrintBadges />} allowedRoles={['admin']} />} />
-            <Route path="/pre-print-forms" element={<ProtectedRoute element={<PrePrintForms />} allowedRoles={['admin']} />} />
+            <Route path="/dashboard" element={<ProtectedRoute element={<Dashboard />} requiredPermission="view_dashboard" />} />
+            <Route path="/users" element={<ProtectedRoute element={<UserManagement />} requiredPermission="manage_users" />} />
+            <Route path="/roles" element={<ProtectedRoute element={<RolesManagement />} requiredPermission="manage_users" />} />
+            <Route path="/exhibitors" element={<ProtectedRoute element={<Exhibitors />} requiredPermission="manage_users" />} />
+            <Route path="/settings" element={<ProtectedRoute element={<Settings />} requiredPermission="manage_settings" />} />
+            <Route path="/sync" element={<ProtectedRoute element={<SyncRecords />} requiredPermission="sync_records" />} />
+            <Route path="/logs" element={<ProtectedRoute element={<ActivityLogs />} requiredPermission="view_logs" />} />
+            <Route path="/pre-print" element={<ProtectedRoute element={<PrePrintBadges />} requiredPermission="print_badges" />} />
+            <Route path="/pre-print-forms" element={<ProtectedRoute element={<PrePrintForms />} requiredPermission="print_badges" />} />
             
-            <Route path="/events" element={<ProtectedRoute element={<EventManagement />} allowedRoles={['admin', 'data_entry']} />} />
-            <Route path="/registration" element={<ProtectedRoute element={<Registration />} allowedRoles={['admin', 'data_entry']} />} />
-            <Route path="/media-registration" element={<ProtectedRoute element={<MediaRegistration />} allowedRoles={['admin', 'data_entry']} />} />
+            <Route path="/events" element={<ProtectedRoute element={<EventManagement />} requiredPermission="view_events" />} />
+            <Route path="/registration" element={<ProtectedRoute element={<Registration />} requiredPermission="register_visitors" />} />
+            <Route path="/media-registration" element={<ProtectedRoute element={<MediaRegistration />} requiredPermission="register_media" />} />
             
-            <Route path="/reviews" element={<ProtectedRoute element={<ReviewForms />} allowedRoles={['admin', 'auditor']} />} />
+            <Route path="/reviews" element={<ProtectedRoute element={<ReviewForms />} requiredPermission="review_queue" />} />
 
-            <Route path="/audit-correction" element={<ProtectedRoute element={<AuditCorrection />} allowedRoles={['admin', 'auditor']} />} />
+            <Route path="/audit-correction" element={<ProtectedRoute element={<AuditCorrection />} requiredPermission="audit_records" />} />
+            <Route path="/profile" element={<ProtectedRoute element={<Profile />} />} />
           </Routes>
         </main>
       </div>

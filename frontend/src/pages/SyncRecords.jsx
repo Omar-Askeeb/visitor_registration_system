@@ -11,8 +11,10 @@ import {
   Target,
   Zap,
   Activity,
-  ArrowRight
+  ArrowRight,
+  ChevronDown,
 } from 'lucide-react';
+import CustomSelect from '../components/CustomSelect';
 import toast from 'react-hot-toast';
 
 const API = import.meta.env.VITE_API_URL;
@@ -69,10 +71,17 @@ const SyncRecords = () => {
     fetchEvents();
   }, []);
 
-  // Fetch data for selected event
+  // Fetch data for selected event and start auto-refresh
   useEffect(() => {
     if (!selectedEventId) return;
+    
     loadSyncData();
+    
+    const interval = setInterval(() => {
+      loadSyncData();
+    }, 30000); // Auto-refresh every 30 seconds
+    
+    return () => clearInterval(interval);
   }, [selectedEventId]);
 
   const loadSyncData = async () => {
@@ -161,20 +170,13 @@ const SyncRecords = () => {
 
         {/* Event Selector */}
         <div className="relative z-10 w-full md:w-80">
-           <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2 block ml-1">Active Sync context</label>
-           <select 
+           <CustomSelect
+             label="Active Sync context"
              value={selectedEventId}
-             onChange={(e) => setSelectedEventId(e.target.value)}
-             className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50 outline-none appearance-none transition-all cursor-pointer"
-           >
-              {events.map(ev => (
-                <option key={ev.id} value={ev.id}>{ev.name} {ev.online_slug ? `(${ev.online_slug})` : ''}</option>
-              ))}
-              {events.length === 0 && <option value="">No sync enabled events</option>}
-           </select>
-           <div className="absolute right-4 bottom-4 pointer-events-none opacity-40">
-              <CalendarDays className="h-4 w-4" />
-           </div>
+             options={events.map(ev => ({ value: ev.id, label: `${ev.name} ${ev.online_slug ? `(${ev.online_slug})` : ''}` }))}
+             onChange={val => setSelectedEventId(val)}
+             placeholder={events.length === 0 ? "No sync enabled events" : undefined}
+           />
         </div>
       </header>
 

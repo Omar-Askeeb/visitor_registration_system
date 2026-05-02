@@ -2,19 +2,44 @@ import React, { useState, useEffect } from 'react';
 import { 
   Zap, Layout, Globe, Database, Shield, Bell, Save, 
   ChevronRight, MousePointer2, Server, Lock, 
-  Settings as SettingsIcon, Printer, RefreshCw, Loader2 
+  Settings as SettingsIcon, Printer, RefreshCw, Loader2, Download, Trash2, UploadCloud
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { openPrintWindow } from '../utils/printBadge';
+import { printExhibitorBadge } from '../utils/printExhibitorBadge';
 
 const API = import.meta.env.VITE_API_URL || '/api';
 
 const DEFAULT_LAYOUT = {
-  pageWidth: 21,
-  pageHeight: 27,
-  name: { y: 6.5, x: '', show: true },
-  barcode: { y: 9.5, x: '', show: true, widthFactor: 1.8, height: 50 },
-  qrCode: { y: 13.5, x: '', show: true, size: 30, template: '{onlineRegID}' }
+  visitor: {
+    pageWidth: 10.5,
+    pageHeight: 14.8,
+    margins: { top: 0, bottom: 0, left: 0, right: 0 },
+    fontSize: 16,
+    name: { y: 6.5, x: '', show: true, includeFirst: true, includeMiddle: false, includeLast: true },
+    barcode: { y: 9.5, x: '', show: true, widthFactor: 1.8, height: 50 },
+    qrCode: { y: 13.5, x: '', show: true, size: 30, template: '{onlineRegID}' }
+  },
+  exhibitorLocal: {
+    pageWidth: 10.5,
+    pageHeight: 14.8,
+    margins: { top: 0, bottom: 0, left: 0, right: 0 },
+    fontSize: 16,
+    company_ar: { y: 4.5, x: '', show: true },
+    company_en: { y: 6.5, x: '', show: true },
+    barcode: { y: 11.5, x: '', show: true, widthFactor: 1.8, height: 50 },
+    qrCode: { y: 15.5, x: '', show: true, size: 30, template: '{id}' }
+  },
+  exhibitorIntl: {
+    pageWidth: 10.5,
+    pageHeight: 14.8,
+    margins: { top: 0, bottom: 0, left: 0, right: 0 },
+    fontSize: 16,
+    company_en: { y: 5.5, x: '', show: true },
+    employee: { y: 8.5, x: '', show: true },
+    barcode: { y: 11.5, x: '', show: true, widthFactor: 1.8, height: 50 },
+    qrCode: { y: 15.5, x: '', show: true, size: 30, template: '{id}' }
+  }
 };
 
 /** 
@@ -22,12 +47,55 @@ const DEFAULT_LAYOUT = {
  */
 const mergeLayout = (saved) => {
   if (!saved || typeof saved !== 'object') return DEFAULT_LAYOUT;
+  
+  // Backwards compatibility for old flat structure
+  if (saved.pageWidth !== undefined && !saved.visitor) {
+    return {
+      visitor: {
+        pageWidth:  saved.pageWidth  || DEFAULT_LAYOUT.visitor.pageWidth,
+        pageHeight: saved.pageHeight || DEFAULT_LAYOUT.visitor.pageHeight,
+        margins:    DEFAULT_LAYOUT.visitor.margins,
+        fontSize:   DEFAULT_LAYOUT.visitor.fontSize,
+        name:       { ...DEFAULT_LAYOUT.visitor.name,    ...(saved.name    || {}) },
+        barcode:    { ...DEFAULT_LAYOUT.visitor.barcode, ...(saved.barcode || {}) },
+        qrCode:     { ...DEFAULT_LAYOUT.visitor.qrCode,  ...(saved.qrCode  || {}) },
+      },
+      exhibitorLocal: DEFAULT_LAYOUT.exhibitorLocal,
+      exhibitorIntl: DEFAULT_LAYOUT.exhibitorIntl
+    };
+  }
+
+  // Handle migration from old 'exhibitor' key to new separated keys
+  const savedExhLocal = saved.exhibitorLocal || saved.exhibitor || {};
+  const savedExhIntl = saved.exhibitorIntl || saved.exhibitor || {};
+
   return {
-    pageWidth:  saved.pageWidth  || DEFAULT_LAYOUT.pageWidth,
-    pageHeight: saved.pageHeight || DEFAULT_LAYOUT.pageHeight,
-    name:       { ...DEFAULT_LAYOUT.name,    ...(saved.name    || {}) },
-    barcode:    { ...DEFAULT_LAYOUT.barcode, ...(saved.barcode || {}) },
-    qrCode:     { ...DEFAULT_LAYOUT.qrCode,  ...(saved.qrCode  || {}) },
+    visitor: {
+      ...DEFAULT_LAYOUT.visitor,
+      ...(saved.visitor || {}),
+      margins: { ...DEFAULT_LAYOUT.visitor.margins, ...(saved.visitor?.margins || {}) },
+      name:    { ...DEFAULT_LAYOUT.visitor.name,    ...(saved.visitor?.name    || {}) },
+      barcode: { ...DEFAULT_LAYOUT.visitor.barcode, ...(saved.visitor?.barcode || {}) },
+      qrCode:  { ...DEFAULT_LAYOUT.visitor.qrCode,  ...(saved.visitor?.qrCode  || {}) },
+    },
+    exhibitorLocal: {
+      ...DEFAULT_LAYOUT.exhibitorLocal,
+      ...savedExhLocal,
+      margins: { ...DEFAULT_LAYOUT.exhibitorLocal.margins, ...(savedExhLocal.margins || {}) },
+      company_ar: { ...DEFAULT_LAYOUT.exhibitorLocal.company_ar, ...(savedExhLocal.company_ar || savedExhLocal.company || {}) },
+      company_en: { ...DEFAULT_LAYOUT.exhibitorLocal.company_en, ...(savedExhLocal.company_en || savedExhLocal.company || {}) },
+      barcode: { ...DEFAULT_LAYOUT.exhibitorLocal.barcode, ...(savedExhLocal.barcode || {}) },
+      qrCode:  { ...DEFAULT_LAYOUT.exhibitorLocal.qrCode,  ...(savedExhLocal.qrCode  || {}) },
+    },
+    exhibitorIntl: {
+      ...DEFAULT_LAYOUT.exhibitorIntl,
+      ...savedExhIntl,
+      margins: { ...DEFAULT_LAYOUT.exhibitorIntl.margins, ...(savedExhIntl.margins || {}) },
+      company_en: { ...DEFAULT_LAYOUT.exhibitorIntl.company_en, ...(savedExhIntl.company_en || savedExhIntl.company || {}) },
+      employee: { ...DEFAULT_LAYOUT.exhibitorIntl.employee, ...(savedExhIntl.employee || savedExhIntl.name || {}) },
+      barcode: { ...DEFAULT_LAYOUT.exhibitorIntl.barcode, ...(savedExhIntl.barcode || {}) },
+      qrCode:  { ...DEFAULT_LAYOUT.exhibitorIntl.qrCode,  ...(savedExhIntl.qrCode  || {}) },
+    }
   };
 };
 
@@ -38,6 +106,7 @@ const Settings = () => {
   const [layout, setLayout] = useState(DEFAULT_LAYOUT);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [layoutType, setLayoutType] = useState('visitor');
   
   const [testData, setTestData] = useState({
     visitorName: 'عمر اسكيب',
@@ -64,6 +133,7 @@ const Settings = () => {
   const [sendingTest, setSendingTest] = useState(false);
   const [publishingStructure, setPublishingStructure] = useState(false);
   const [syncingData, setSyncingData] = useState(false);
+  const [restoring, setRestoring] = useState(false);
 
   // 1. Initial Load
   useEffect(() => {
@@ -138,11 +208,25 @@ const Settings = () => {
 
   const handleLayoutChange = (section, field, value) => {
     if (section === 'root') {
-      setLayout(prev => ({ ...prev, [field]: value }));
+      setLayout(prev => ({
+        ...prev,
+        [layoutType]: { ...prev[layoutType], [field]: value }
+      }));
+    } else if (section === 'margins') {
+      setLayout(prev => ({
+        ...prev,
+        [layoutType]: {
+          ...prev[layoutType],
+          margins: { ...prev[layoutType].margins, [field]: value }
+        }
+      }));
     } else {
       setLayout(prev => ({
         ...prev,
-        [section]: { ...prev[section], [field]: value }
+        [layoutType]: {
+          ...prev[layoutType],
+          [section]: { ...prev[layoutType][section], [field]: value }
+        }
       }));
     }
   };
@@ -232,19 +316,113 @@ const Settings = () => {
   };
 
   const handleTestPrint = () => {
-    const mockVisitor = {
-      visitorName: testData.visitorName,
-      surName: '',
-      onlineRegID: 'ONL-TEST-QR',
-    };
     const evName = events.find(e => e.id === selectedEventId)?.name || 'Test Event';
-    openPrintWindow(mockVisitor, testData.badgeID, evName, true, layout, true);
+    
+    if (layoutType === 'visitor') {
+      const mockVisitor = {
+        visitorName: testData.visitorName,
+        midleName: 'أحمد',
+        surName: 'بن علي',
+        onlineRegID: 'ONL-TEST-QR',
+      };
+      openPrintWindow(mockVisitor, testData.badgeID, evName, true, layout, true);
+    } else {
+      const isLocal = layoutType === 'exhibitorLocal';
+      const mockExhibitor = {
+        id: 99999,
+        type: isLocal ? 'local' : 'international',
+        company_name_en: 'Elnwris Company',
+        company_name_ar: 'شركة النورس لاستيراد معدات تجهيز المطاعم والفنادق والمقاهي',
+        number_of_badges: 1,
+      };
+      
+      const mockEmployee = 'Ahmed Ali';
+      
+      // printExhibitorBadge handles creating the mock employee if international
+      if (!isLocal) {
+        mockExhibitor.employees = [{ name: mockEmployee }];
+      }
+      
+      printExhibitorBadge(mockExhibitor, layout);
+    }
   };
 
   const handleReset = () => {
     if (window.confirm('Reset this event\'s protocols to system defaults?')) {
       setLayout(DEFAULT_LAYOUT);
       toast.success('Layout reset internally. Click "Commit Changes" to persist.');
+    }
+  };
+
+  const handleExport = async () => {
+    const loadingToast = toast.loading('Packaging Database Matrix...', {
+      style: { borderRadius: '16px', background: '#0f172a', color: '#fff' },
+    });
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API}/backup/export`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'text/sql'
+        }
+      });
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `backup_${new Date().toISOString().split('T')[0]}.sql`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      
+      toast.success('Backup sequence finalized!', { id: loadingToast });
+    } catch (err) {
+      console.error('Export Error:', err);
+      toast.error('Backup Protocol Interrupted: ' + err.message, { id: loadingToast });
+    }
+  };
+
+  const handleRestore = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!window.confirm('WARNING: Restoring the database will OVERWRITE all current data. This action is irreversible. Continue?')) {
+      e.target.value = ''; // reset
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    setRestoring(true);
+    const loadingToast = toast.loading('Reconstructing Database Clusters...', {
+      style: { borderRadius: '16px', background: '#0f172a', color: '#fff' },
+    });
+
+    try {
+      const resp = await fetch(`${API}/backup/import`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        throw new Error(errData.message || `HTTP ${resp.status}`);
+      }
+      
+      toast.success('Database Restoration Complete. System is now back in sync!', { id: loadingToast });
+      fetchEvents(); // Refresh data
+    } catch (err) {
+      console.error('Restore Error:', err);
+      toast.error('Restoration Protocol Failed: ' + err.message, { id: loadingToast });
+    } finally {
+      setRestoring(false);
+      e.target.value = ''; // reset
     }
   };
 
@@ -360,164 +538,270 @@ const Settings = () => {
              </>
            )}
 
-           {activeTab === 'Layout Protocols' && (
-              <section className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800/50">
-                    <div className="flex items-center space-x-3">
-                       <Layout className="h-5 w-5 text-slate-400 dark:text-slate-600" />
-                       <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">Badge Layout Matrix</h3>
-                    </div>
-                    
-                    <div className="flex flex-wrap items-center gap-4 bg-slate-100/50 dark:bg-slate-950/30 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
-                       <button 
-                         onClick={handleReset}
-                         className="flex items-center space-x-2 bg-slate-200 dark:bg-slate-800 text-slate-500 px-4 py-2 rounded-xl hover:bg-red-500/10 hover:text-red-500 transition-all text-[10px] font-black uppercase tracking-widest h-10 border border-slate-300 dark:border-slate-700"
-                       >
-                         <RefreshCw className="h-3.5 w-3.5" />
-                         <span>Reset</span>
-                       </button>
-
-                       <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-2 hidden md:block" />
-
-                       <div className="space-y-1.5">
-                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest px-1">Test Name</label>
-                          <input 
-                             type="text" 
-                             value={testData.visitorName} 
-                             onChange={e => setTestData(p => ({...p, visitorName: e.target.value}))}
-                             className="w-28 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg py-2 px-3 text-[10px] font-bold outline-none focus:border-cyan-500 transition-colors" 
-                          />
-                       </div>
-                       <div className="space-y-1.5">
-                          <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest px-1">Test ID</label>
-                          <input 
-                             type="text" 
-                             value={testData.badgeID} 
-                             onChange={e => setTestData(p => ({...p, badgeID: e.target.value}))}
-                             className="w-28 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg py-2 px-3 text-[10px] font-bold outline-none focus:border-cyan-500 transition-colors" 
-                          />
-                       </div>
-                       <button 
-                         onClick={handleTestPrint}
-                         className="flex items-center space-x-2 bg-cyan-500 text-white px-5 py-2 rounded-xl shadow-lg shadow-cyan-500/20 hover:scale-105 active:scale-95 transition-all text-[10px] font-black uppercase tracking-widest h-10"
-                       >
-                         <Printer className="h-3.5 w-3.5" />
-                         <span>Print Test</span>
-                       </button>
-                    </div>
-                 </div>
-
-                 {/* Physical Properties */}
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-4 p-6 bg-white dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-3xl">
-                       <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Physical Canvas</h4>
-                       <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1.5">
-                             <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Width (cm)</label>
-                             <input type="number" step="0.1" value={layout.pageWidth} onChange={e => handleLayoutChange('root', 'pageWidth', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-xs font-bold" />
-                          </div>
-                          <div className="space-y-1.5">
-                             <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Height (cm)</label>
-                             <input type="number" step="0.1" value={layout.pageHeight} onChange={e => handleLayoutChange('root', 'pageHeight', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-xs font-bold" />
-                          </div>
-                       </div>
-                    </div>
-
-                    {/* Visitor Name */}
-                    <div className="space-y-4 p-6 bg-white dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-3xl">
-                        <div className="flex items-center justify-between mb-4">
-                           <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Visitor Name</h4>
-                           <input type="checkbox" checked={layout.name.show} onChange={e => handleLayoutChange('name', 'show', e.target.checked)} className="h-4 w-4 accent-cyan-500" />
+            {activeTab === 'Layout Protocols' && (
+               <section className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-200 dark:border-slate-800/50">
+                     <div className="flex items-center space-x-3">
+                        <Layout className="h-5 w-5 text-slate-400 dark:text-slate-600" />
+                        <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">Badge Layout Matrix</h3>
+                     </div>
+                     
+                     <div className="flex flex-wrap items-center gap-4 bg-slate-100/50 dark:bg-slate-950/30 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                        <div className="flex bg-slate-200/50 dark:bg-slate-900/50 p-1 rounded-xl">
+                          <button 
+                            onClick={() => setLayoutType('visitor')}
+                            className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${layoutType === 'visitor' ? 'bg-white dark:bg-slate-800 text-cyan-500 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                          >
+                            Visitor
+                          </button>
+                          <button 
+                            onClick={() => setLayoutType('exhibitorLocal')}
+                            className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${layoutType === 'exhibitorLocal' ? 'bg-white dark:bg-slate-800 text-emerald-500 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                          >
+                            Exhibitor (Local)
+                          </button>
+                          <button 
+                            onClick={() => setLayoutType('exhibitorIntl')}
+                            className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${layoutType === 'exhibitorIntl' ? 'bg-white dark:bg-slate-800 text-purple-500 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                          >
+                            Exhibitor (Intl)
+                          </button>
                         </div>
+
+                        <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-2 hidden md:block" />
+
+                        <button 
+                          onClick={handleReset}
+                          className="flex items-center space-x-2 bg-slate-200 dark:bg-slate-800 text-slate-500 px-4 py-2 rounded-xl hover:bg-red-500/10 hover:text-red-500 transition-all text-[10px] font-black uppercase tracking-widest h-10 border border-slate-300 dark:border-slate-700"
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          <span>Reset</span>
+                        </button>
+
+                        <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-2 hidden md:block" />
+
+                        <div className="space-y-1.5">
+                           <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest px-1">Test Name</label>
+                           <input 
+                              type="text" 
+                              value={testData.visitorName} 
+                              onChange={e => setTestData(p => ({...p, visitorName: e.target.value}))}
+                              className="w-28 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg py-2 px-3 text-[10px] font-bold outline-none focus:border-cyan-500 transition-colors" 
+                           />
+                        </div>
+                        <div className="space-y-1.5">
+                           <label className="text-[8px] font-black text-slate-500 uppercase tracking-widest px-1">Test ID</label>
+                           <input 
+                              type="text" 
+                              value={testData.badgeID} 
+                              onChange={e => setTestData(p => ({...p, badgeID: e.target.value}))}
+                              className="w-28 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg py-2 px-3 text-[10px] font-bold outline-none focus:border-cyan-500 transition-colors" 
+                           />
+                        </div>
+                        <button 
+                          onClick={handleTestPrint}
+                          className="flex items-center space-x-2 bg-cyan-500 text-white px-5 py-2 rounded-xl shadow-lg shadow-cyan-500/20 hover:scale-105 active:scale-95 transition-all text-[10px] font-black uppercase tracking-widest h-10"
+                        >
+                          <Printer className="h-3.5 w-3.5" />
+                          <span>Print Test</span>
+                        </button>
+                     </div>
+                  </div>
+
+                  {/* Physical Properties */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                     <div className="space-y-4 p-6 bg-white dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-3xl">
+                        <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Physical Canvas</h4>
                         <div className="grid grid-cols-2 gap-4">
                            <div className="space-y-1.5">
+                              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Width (cm)</label>
+                              <input type="number" step="0.1" value={layout[layoutType]?.pageWidth} onChange={e => handleLayoutChange('root', 'pageWidth', Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-4 px-2 text-xs font-bold leading-none min-h-[48px] text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                           </div>
+                           <div className="space-y-1.5">
+                              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Height (cm)</label>
+                              <input type="number" step="0.1" value={layout[layoutType]?.pageHeight} onChange={e => handleLayoutChange('root', 'pageHeight', Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-4 px-2 text-xs font-bold leading-none min-h-[48px] text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                           </div>
+                        </div>
+                        {layoutType !== 'visitor' && (
+                           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                              <div className="space-y-1.5">
+                                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Top Margin (cm)</label>
+                                 <input type="number" step="0.1" value={layout[layoutType]?.margins?.top} onChange={e => handleLayoutChange('margins', 'top', Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-4 px-2 text-xs font-bold leading-none min-h-[48px] text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                              </div>
+                              <div className="space-y-1.5">
+                                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Bottom Margin (cm)</label>
+                                 <input type="number" step="0.1" value={layout[layoutType]?.margins?.bottom} onChange={e => handleLayoutChange('margins', 'bottom', Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-4 px-2 text-xs font-bold leading-none min-h-[48px] text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                              </div>
+                              <div className="space-y-1.5">
+                                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Left Margin (cm)</label>
+                                 <input type="number" step="0.1" value={layout[layoutType]?.margins?.left} onChange={e => handleLayoutChange('margins', 'left', Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-4 px-2 text-xs font-bold leading-none min-h-[48px] text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                              </div>
+                              <div className="space-y-1.5">
+                                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Right Margin (cm)</label>
+                                 <input type="number" step="0.1" value={layout[layoutType]?.margins?.right} onChange={e => handleLayoutChange('margins', 'right', Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-4 px-2 text-xs font-bold leading-none min-h-[48px] text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                              </div>
+                           </div>
+                        )}
+                        <div className="mt-4 space-y-1.5">
+                           <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Base Font Size (pt)</label>
+                           <input type="number" step="1" value={layout[layoutType]?.fontSize} onChange={e => handleLayoutChange('root', 'fontSize', Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-4 px-2 text-xs font-bold leading-none min-h-[48px] text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                        </div>
+                     </div>
+
+                     {/* Visitor Name (Only for visitors) */}
+                     {layoutType === 'visitor' && (
+                        <div className="space-y-4 p-6 bg-white dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-3xl">
+                           <div className="flex items-center justify-between mb-4">
+                              <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Visitor Name</h4>
+                              <input type="checkbox" checked={layout[layoutType]?.name?.show} onChange={e => handleLayoutChange('name', 'show', e.target.checked)} className="h-4 w-4 accent-cyan-500" />
+                           </div>
+                           <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-1.5">
+                                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Pos Y (cm)</label>
+                                 <input type="number" step="0.1" value={layout[layoutType]?.name?.y} onChange={e => handleLayoutChange('name', 'y', Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-4 px-2 text-xs font-bold leading-none min-h-[48px] text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                              </div>
+                              <div className="space-y-1.5">
+                                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Pos X (cm)</label>
+                                 <input type="text" placeholder="Auto" value={layout[layoutType]?.name?.x} onChange={e => handleLayoutChange('name', 'x', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-4 px-2 text-xs font-bold leading-none min-h-[48px] text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                              </div>
+                           </div>
+
+                           <div className="pt-4 space-y-3">
+                                 <h5 className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Construct Name From:</h5>
+                                 <div className="flex flex-wrap gap-4">
+                                    <label className="flex items-center space-x-2 cursor-pointer group">
+                                       <input type="checkbox" checked={layout.visitor.name.includeFirst} onChange={e => handleLayoutChange('name', 'includeFirst', e.target.checked)} className="h-3.5 w-3.5 accent-cyan-500" />
+                                       <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase group-hover:text-cyan-500 transition-colors">First Name</span>
+                                    </label>
+                                    <label className="flex items-center space-x-2 cursor-pointer group">
+                                       <input type="checkbox" checked={layout.visitor.name.includeMiddle} onChange={e => handleLayoutChange('name', 'includeMiddle', e.target.checked)} className="h-3.5 w-3.5 accent-cyan-500" />
+                                       <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase group-hover:text-cyan-500 transition-colors">Middle Name</span>
+                                    </label>
+                                    <label className="flex items-center space-x-2 cursor-pointer group">
+                                       <input type="checkbox" checked={layout.visitor.name.includeLast} onChange={e => handleLayoutChange('name', 'includeLast', e.target.checked)} className="h-3.5 w-3.5 accent-cyan-500" />
+                                       <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase group-hover:text-cyan-500 transition-colors">Surname</span>
+                                    </label>
+                                 </div>
+                           </div>
+                        </div>
+                     )}
+
+                     {/* Exhibitor Local Config */}
+                     {layoutType === 'exhibitorLocal' && (
+                        <>
+                           <div className="space-y-4 p-6 bg-white dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-3xl">
+                              <div className="flex items-center justify-between">
+                                 <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Company Name (Arabic)</h4>
+                                 <input type="checkbox" checked={layout[layoutType]?.company_ar?.show} onChange={e => handleLayoutChange('company_ar', 'show', e.target.checked)} className="h-4 w-4 accent-cyan-500" />
+                              </div>
+                           </div>
+                           <div className="space-y-4 p-6 bg-white dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-3xl">
+                              <div className="flex items-center justify-between">
+                                 <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Company Name (English)</h4>
+                                 <input type="checkbox" checked={layout[layoutType]?.company_en?.show} onChange={e => handleLayoutChange('company_en', 'show', e.target.checked)} className="h-4 w-4 accent-cyan-500" />
+                              </div>
+                           </div>
+                        </>
+                     )}
+
+                     {/* Exhibitor International Config */}
+                     {layoutType === 'exhibitorIntl' && (
+                        <>
+                           <div className="space-y-4 p-6 bg-white dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-3xl">
+                              <div className="flex items-center justify-between">
+                                 <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Company Name (English)</h4>
+                                 <input type="checkbox" checked={layout[layoutType]?.company_en?.show} onChange={e => handleLayoutChange('company_en', 'show', e.target.checked)} className="h-4 w-4 accent-cyan-500" />
+                              </div>
+                           </div>
+                           <div className="space-y-4 p-6 bg-white dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-3xl">
+                              <div className="flex items-center justify-between">
+                                 <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Employee Name</h4>
+                                 <input type="checkbox" checked={layout[layoutType]?.employee?.show} onChange={e => handleLayoutChange('employee', 'show', e.target.checked)} className="h-4 w-4 accent-cyan-500" />
+                              </div>
+                           </div>
+                        </>
+                     )}
+                  </div>
+
+                  {/* Barcode Properties */}
+                  {layoutType === 'visitor' && (
+                     <div className="space-y-4 p-6 bg-white dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-3xl">
+                        <div className="flex items-center justify-between mb-4">
+                           <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Barcode Protocol</h4>
+                           <input type="checkbox" checked={layout[layoutType]?.barcode?.show} onChange={e => handleLayoutChange('barcode', 'show', e.target.checked)} className="h-4 w-4 accent-cyan-500" />
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                           <div className="space-y-1.5">
                               <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Pos Y (cm)</label>
-                              <input type="number" step="0.1" value={layout.name.y} onChange={e => handleLayoutChange('name', 'y', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-xs font-bold" />
+                              <input type="number" step="0.1" value={layout[layoutType]?.barcode?.y} onChange={e => handleLayoutChange('barcode', 'y', Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-4 px-2 text-xs font-bold leading-none min-h-[48px] text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                            </div>
                            <div className="space-y-1.5">
                               <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Pos X (cm)</label>
-                              <input type="text" placeholder="Auto" value={layout.name.x} onChange={e => handleLayoutChange('name', 'x', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-xs font-bold" />
+                              <input type="text" placeholder="Auto" value={layout[layoutType]?.barcode?.x} onChange={e => handleLayoutChange('barcode', 'x', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-4 px-2 text-xs font-bold leading-none min-h-[48px] text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                           </div>
+                           <div className="space-y-1.5">
+                              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Width Factor</label>
+                              <input type="number" step="0.1" value={layout[layoutType]?.barcode?.widthFactor} onChange={e => handleLayoutChange('barcode', 'widthFactor', Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-4 px-2 text-xs font-bold leading-none min-h-[48px] text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                           </div>
+                           <div className="space-y-1.5">
+                              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Height (px)</label>
+                              <input type="number" value={layout[layoutType]?.barcode?.height} onChange={e => handleLayoutChange('barcode', 'height', Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-4 px-2 text-xs font-bold leading-none min-h-[48px] text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
                            </div>
                         </div>
-                    </div>
-                 </div>
+                     </div>
+                  )}
 
-                 {/* Barcode Properties */}
-                 <div className="space-y-4 p-6 bg-white dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-3xl">
-                    <div className="flex items-center justify-between mb-4">
-                       <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">Barcode Protocol</h4>
-                       <input type="checkbox" checked={layout.barcode.show} onChange={e => handleLayoutChange('barcode', 'show', e.target.checked)} className="h-4 w-4 accent-cyan-500" />
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                       <div className="space-y-1.5">
-                          <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Pos Y (cm)</label>
-                          <input type="number" step="0.1" value={layout.barcode.y} onChange={e => handleLayoutChange('barcode', 'y', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-xs font-bold" />
-                       </div>
-                       <div className="space-y-1.5">
-                          <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Pos X (cm)</label>
-                          <input type="text" placeholder="Auto" value={layout.barcode.x} onChange={e => handleLayoutChange('barcode', 'x', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-xs font-bold" />
-                       </div>
-                       <div className="space-y-1.5">
-                          <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Width Factor</label>
-                          <input type="number" step="0.1" value={layout.barcode.widthFactor} onChange={e => handleLayoutChange('barcode', 'widthFactor', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-xs font-bold" />
-                       </div>
-                       <div className="space-y-1.5">
-                          <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Height (px)</label>
-                          <input type="number" value={layout.barcode.height} onChange={e => handleLayoutChange('barcode', 'height', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-xs font-bold" />
-                       </div>
-                    </div>
-                 </div>
-
-                 {/* QR Code Matrix */}
-                 <div className="space-y-4 p-6 bg-white dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-3xl">
-                    <div className="flex items-center justify-between mb-4">
-                       <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">QR Code Matrix</h4>
-                       <input type="checkbox" checked={layout.qrCode.show} onChange={e => handleLayoutChange('qrCode', 'show', e.target.checked)} className="h-4 w-4 accent-cyan-500" />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                       <div className="grid grid-cols-3 gap-4">
-                          <div className="space-y-1.5">
-                             <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Pos Y (cm)</label>
-                             <input type="number" step="0.1" value={layout.qrCode.y} onChange={e => handleLayoutChange('qrCode', 'y', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-xs font-bold" />
-                          </div>
-                          <div className="space-y-1.5">
-                             <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Pos X (cm)</label>
-                             <input type="text" placeholder="Auto" value={layout.qrCode.x} onChange={e => handleLayoutChange('qrCode', 'x', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-xs font-bold" />
-                          </div>
-                          <div className="space-y-1.5">
-                             <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Size (mm)</label>
-                             <input type="number" value={layout.qrCode.size} onChange={e => handleLayoutChange('qrCode', 'size', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-3 px-4 text-xs font-bold" />
-                          </div>
-                       </div>
-                       <div className="space-y-3">
-                          <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Content Template</label>
-                          <div className="flex flex-wrap gap-2 mb-2">
-                             {[
-                               '{name}', '{badgeID}', '{onlineRegID}', 
-                               '{formID}', '{middleName}', '{surName}', 
-                               '{phone1}', '{phone2}', '{email}'
-                             ].map((v) => (
-                               <button 
-                                 key={v}
-                                 onClick={() => handleLayoutChange('qrCode', 'template', layout.qrCode.template + v)}
-                                 className="px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg text-[8px] font-black text-slate-500 hover:text-cyan-500 hover:border-cyan-500/30 transition-all uppercase tracking-tighter"
-                               >
-                                 {v}
-                               </button>
-                             ))}
-                          </div>
-                          <input 
-                            type="text" 
-                            value={layout.qrCode.template} 
-                            onChange={e => handleLayoutChange('qrCode', 'template', e.target.value)} 
-                            placeholder="e.g. {onlineRegID}" 
-                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-4 px-4 text-xs font-mono font-bold" 
-                          />
-                       </div>
-                    </div>
-                 </div>
-              </section>
-           )}
+                  {/* QR Code Matrix */}
+                  {layoutType === 'visitor' && (
+                     <div className="space-y-4 p-6 bg-white dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-3xl">
+                        <div className="flex items-center justify-between mb-4">
+                           <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">QR Code Matrix</h4>
+                           <input type="checkbox" checked={layout[layoutType]?.qrCode?.show} onChange={e => handleLayoutChange('qrCode', 'show', e.target.checked)} className="h-4 w-4 accent-cyan-500" />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                           <div className="grid grid-cols-3 gap-4">
+                              <div className="space-y-1.5">
+                                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Pos Y (cm)</label>
+                                 <input type="number" step="0.1" value={layout[layoutType]?.qrCode?.y} onChange={e => handleLayoutChange('qrCode', 'y', Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-4 px-2 text-xs font-bold leading-none min-h-[48px] text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                              </div>
+                              <div className="space-y-1.5">
+                                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Pos X (cm)</label>
+                                 <input type="text" placeholder="Auto" value={layout[layoutType]?.qrCode?.x} onChange={e => handleLayoutChange('qrCode', 'x', e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-4 px-2 text-xs font-bold leading-none min-h-[48px] text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                              </div>
+                              <div className="space-y-1.5">
+                                 <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Size (mm)</label>
+                                 <input type="number" value={layout[layoutType]?.qrCode?.size} onChange={e => handleLayoutChange('qrCode', 'size', Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-4 px-2 text-xs font-bold leading-none min-h-[48px] text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                              </div>
+                           </div>
+                           <div className="space-y-3">
+                              <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Content Template</label>
+                              <div className="flex flex-wrap gap-2 mb-2">
+                                 {[
+                                   '{name}', '{badgeID}', '{onlineRegID}', 
+                                   '{formID}', '{company}'
+                                 ].map((v) => (
+                                   <button 
+                                     key={v}
+                                     onClick={() => handleLayoutChange('qrCode', 'template', layout[layoutType]?.qrCode?.template + v)}
+                                     className="px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg text-[8px] font-black text-slate-500 hover:text-cyan-500 hover:border-cyan-500/30 transition-all uppercase tracking-tighter"
+                                   >
+                                     {v}
+                                   </button>
+                                 ))}
+                              </div>
+                              <input 
+                                type="text" 
+                                value={layout[layoutType]?.qrCode?.template} 
+                                onChange={e => handleLayoutChange('qrCode', 'template', e.target.value)} 
+                                placeholder="e.g. {onlineRegID}" 
+                                className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl py-4 px-4 text-xs font-mono font-bold" 
+                              />
+                           </div>
+                        </div>
+                     </div>
+                  )}
+               </section>
+            )}
 
            {activeTab === 'Database Node' && (
               <section className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -546,8 +830,38 @@ const Settings = () => {
                     </div>
                  </div>
                  <div className="p-6 bg-slate-100 dark:bg-slate-950/20 border border-slate-200 dark:border-slate-800 rounded-2xl">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase leading-relaxed tracking-widest">The registration node is currently synchronized with the master database. Auto-replication is active.</p>
-                 </div>
+                     <p className="text-[10px] font-bold text-slate-500 uppercase leading-relaxed tracking-widest mb-6">The registration node is currently synchronized with the master database. Auto-replication is active.</p>
+                     
+                     <div className="flex flex-col md:flex-row gap-4">
+                        <button 
+                          onClick={handleExport}
+                          className="flex-1 flex items-center justify-center space-x-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl hover:border-cyan-500/50 transition-all group"
+                        >
+                           <Download className="h-4 w-4 text-cyan-500 group-hover:scale-110 transition-transform" />
+                           <div className="text-left">
+                              <div className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">Download Backup</div>
+                              <div className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">Full SQL Dump</div>
+                           </div>
+                        </button>
+
+                        <div className="flex-1 relative">
+                           <input 
+                              type="file" 
+                              accept=".sql"
+                              onChange={handleRestore}
+                              disabled={restoring}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                           />
+                           <div className="flex items-center justify-center space-x-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl hover:border-red-500/50 transition-all group h-full">
+                              <UploadCloud className="h-4 w-4 text-red-500 group-hover:scale-110 transition-transform" />
+                              <div className="text-left">
+                                 <div className="text-[10px] font-black uppercase tracking-widest text-slate-900 dark:text-white">Restore Database</div>
+                                 <div className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">Upload .sql file</div>
+                              </div>
+                           </div>
+                        </div>
+                     </div>
+                  </div>
               </section>
            )}
 

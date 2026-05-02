@@ -20,7 +20,7 @@ class VisitorController extends Controller
     public function index(Request $request, Event $event): JsonResponse
     {
         $query = $event->visitors()
-            ->with(['creator:id,name', 'modifiedBy:id,name', 'verifiedBy:id,name', 'printer:id,name']);
+            ->with(['creator:id,name,role_id', 'creator.role:id,name', 'modifiedBy:id,name', 'verifiedBy:id,name', 'printer:id,name']);
 
         // Filtering by personnel (creator)
         if ($request->has('creator_id')) {
@@ -81,16 +81,29 @@ class VisitorController extends Controller
     private function generateNextBadgeIdData(Event $event): array
     {
         $prefix = $event->badge_id_prefix;
+        
+        // Get the latest badge ID for this event that starts with the prefix
         $last = $event->visitors()
             ->whereNotNull('badgeID')
             ->where('badgeID', 'like', $prefix . '%')
-            ->orderByRaw('CAST(SUBSTRING(badgeID, ?) AS UNSIGNED) DESC', [strlen($prefix) + 1])
+            ->orderByRaw('LENGTH(badgeID) DESC, badgeID DESC')
             ->value('badgeID');
 
+        // If the whole ID is numeric (common for long sequences), we treat it as a single number to allow overflow/carry
+        if ($last && is_numeric($last)) {
+            // Use bcadd if available, else standard addition
+            $next = function_exists('bcadd') ? bcadd($last, '1') : (string)((float)$last + 1);
+            return [
+                'badgeID' => $next,
+                'nextNum' => 0,
+            ];
+        }
+
+        // Traditional prefix + suffix logic for alphanumeric IDs (e.g., LB-00001)
         $nextNum = 1;
         if ($last) {
             $suffix  = substr($last, strlen($prefix));
-            $nextNum = ((int) $suffix) + 1;
+            $nextNum = (is_numeric($suffix) ? (int)$suffix : 0) + 1;
         }
 
         return [
@@ -149,7 +162,7 @@ class VisitorController extends Controller
     public function store(Request $request, Event $event): JsonResponse
     {
         $validated = $request->validate([
-            'formID'       => 'required|string|unique:visitors,formID',
+            'formID'       => 'required|string|unique:visitors,formID,NULL,id,event_id,' . $event->id,
             'badgeID'      => 'nullable|string',
             'onlineRegID'  => 'nullable|string',
             'visitorName'  => 'nullable|string|max:255',
@@ -172,6 +185,21 @@ class VisitorController extends Controller
         $validated['insertUnits'] = 1;
         $validated['creator_id']  = auth()->id();
         $validated['modifier']    = auth()->id();
+
+        // Determine source categorization
+        if (!empty($validated['onlineRegID'])) {
+            $validated['online_source']  = 'online';
+            $validated['visitor_source'] = 'online';
+        } else {
+            $user = auth()->user()->load('role');
+            if ($user->role && $user->role->name === 'self_service_device') {
+                $validated['online_source']  = 'self_register';
+                $validated['visitor_source'] = 'self-service';
+            } else {
+                $validated['online_source']  = 'onsite';
+                $validated['visitor_source'] = 'onsite';
+            }
+        }
 
         // Auto-stamp print_date when a new visitor is saved+printed in one step
         if (!empty($validated['print_count']) && $validated['print_count'] > 0) {
@@ -335,9 +363,13 @@ class VisitorController extends Controller
             return response()->json(['message' => 'Training events are excluded from CRM sync.'], 422);
         }
 
-        // Find all on-site visitors that haven't successfully synced
+        if (!$event->sync_push_enabled || !$event->sync_push_url) {
+            return response()->json(['message' => 'Push Sync is disabled for this event.'], 400);
+        }
+
+        // Find all non-online visitors that haven't successfully synced
         $visitors = $event->visitors()
-            ->whereNull('onlineRegID')           // on-site only (not CRM-pulled)
+            ->whereIn('visitor_source', ['onsite', 'self-service']) 
             ->where(function ($q) {
                 $q->whereNull('external_sync_status')
                   ->orWhere('external_sync_status', 'failed')

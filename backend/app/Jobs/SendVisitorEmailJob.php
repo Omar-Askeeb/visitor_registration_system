@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 class SendVisitorEmailJob implements ShouldQueue
 {
     use Queueable;
+    public int $tries = 1;
 
     protected Visitor $visitor;
 
@@ -88,7 +89,7 @@ class SendVisitorEmailJob implements ShouldQueue
                 'email_send_status' => 'failed',
                 'email_send_error'  => $e->getMessage(),
             ]);
-            throw $e; // Re-throw to allow queue retry if configured
+            // Removed throw $e to prevent retries
         }
     }
 

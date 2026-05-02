@@ -20,12 +20,7 @@ class RegisterVisitorExternalJob implements ShouldQueue
     /**
      * Number of times the job may be attempted.
      */
-    public int $tries = 3;
-
-    /**
-     * Number of seconds to wait before retrying.
-     */
-    public array $backoff = [10, 30, 60];
+    public int $tries = 1;
 
     /**
      * The visitor to push to the external API.
@@ -36,12 +31,20 @@ class RegisterVisitorExternalJob implements ShouldQueue
      * Workfield mapping: local Arabic value => external API English value.
      */
     protected array $workfieldMap = [
+        // Libya Build
         'العمارة'                     => 'Building & Construction Materials',
         'مواد البناء'                 => 'Building & Construction Materials',
         'الصناديق والمؤسسات المالية' => 'Real Estate',
         'ديكور داخلي'                 => 'Building & Construction Materials',
         'أعمال ميكانيكية'             => 'Building & Construction Materials',
         'عقارات'                      => 'Real Estate',
+        
+        // Horeca
+        'المشروبات والقهوة'            => 'Coffee & Tea',
+        'خدمات الطعام / منتجات اللحوم'  => 'Food Services',
+        'تجهيز الفنادق وأثاث المطاعم'  => 'Hospitality Equipment & Supplies',
+        'التسويق الرقمي / نقاط البيع / مستلزمات' => 'Digital Marketing',
+        'معدات المطابخ والتموين'       => 'Kitchen Equipment',
     ];
 
     /**
@@ -57,6 +60,11 @@ class RegisterVisitorExternalJob implements ShouldQueue
      */
     public function handle(): void
     {
+        $event = $this->visitor->event;
+        if (!$event || !$event->sync_push_enabled || !$event->sync_push_url) {
+            return;
+        }
+
         // Only mark as pending and clear old errors on the first attempt
         if ($this->attempts() <= 1) {
             $this->visitor->update([
@@ -84,34 +92,37 @@ class RegisterVisitorExternalJob implements ShouldQueue
         }
 
         // --- Build salutation ---
-        $salutation = $this->visitor->gender === 'أنثى' ? 'Ms.' : 'Mr.';
+        $salutation = $this->visitor->gender === 'أنثى' ? 'Ms' : 'Mr';
 
         // --- Build payload ---
         $payload = [
-            'eventId'        => 11,
-            'email'          => $this->visitor->email ?? '',
-            'salutation'     => $salutation,
-            'first_name'     => $this->visitor->visitorName ?? '',
-            'last_name'      => $this->visitor->surName ?? '',
-            'company'        => $this->visitor->organisation ?? '',
-            'phone'          => $this->visitor->phone1 ?? '',
-            'mobile'         => $this->visitor->phone1 ?? '',
-            'job'            => $this->visitor->organisation ?? '',
-            'country'        => $country,
-            'region'         => 'North Africa',
-            'referredEmail'  => '',
-            'companySector'  => $companySector,
-            'howHeardAboutUs'=> $this->visitor->howexpo ?? [],
-            'prefer_language'=> 'ar',
+            'salutation'      => $salutation,
+            'first_name'      => $this->visitor->visitorName ?? '',
+            'last_name'       => $this->visitor->surName ?? '',
+            'company'         => $this->visitor->organisation ?? '',
+            'phone'           => $this->visitor->phone1 ?? '',
+            'mobile'          => $this->visitor->phone1 ?? '',
+            'email'           => $this->visitor->email ?? '',
+            'job'             => $this->visitor->organisation ?? '', // Map job to organization/company as in previous event
+            'country'         => $country,
+            'region'          => 'North Africa',
+            'companySector'   => $companySector,
+            'howHeardAboutUs' => $this->visitor->howexpo ?? [],
+            'source'          => 'onsite',
+            'prefer-language' => 'ar',
         ];
 
-        // --- Call external API — JSON body, 3 retries ---
+        // Add eventId only if it's NOT Horeca (Libya Build needs it)
+        if ($event->id == 1) {
+            $payload['eventId'] = 11;
+        }
+
+        // --- Call external API ---
         try {
-            $response = Http::retry(3, 1000)
-                ->timeout(15)
+            $response = Http::timeout(30)
                 ->asJson()
                 ->withHeaders(['Accept' => 'application/json'])
-                ->post('https://eventxcrm.com/api/register-visitor-onsite', $payload);
+                ->post($event->sync_push_url, $payload);
 
             $responseBody = $response->json();
 
@@ -161,8 +172,9 @@ class RegisterVisitorExternalJob implements ShouldQueue
             }
 
         } catch (\Exception $e) {
-            // Re-throw so the queue worker can retry via $tries / $backoff
-            throw $e;
+            // Mark as failed and log the error, but do NOT re-throw.
+            // This prevents the job from being retried and blocking the queue.
+            $this->failed($e);
         }
     }
 

@@ -16,7 +16,9 @@ import {
   FileText,
   FileImage,
   ShieldCheck,
-  Printer
+  Printer,
+  Building2,
+  User
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -33,20 +35,50 @@ const Sidebar = ({ isOpen, onClose }) => {
   if (!user) return null;
 
   const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard',    path: '/dashboard', color: 'cyan',    roles: ['admin'] },
-    { icon: CalendarRange,   label: 'Events',        path: '/events',    color: 'violet', roles: ['admin', 'data_entry'] },
-    { icon: PlusCircle,      label: 'Registration',  path: '/registration', color: 'emerald', roles: ['admin', 'data_entry'] },
-    { icon: FileText,        label: 'Media Registration', path: '/media-registration', color: 'indigo', roles: ['admin', 'data_entry'] },
-    { icon: Users,           label: 'Personnel',     path: '/users',     color: 'blue',   roles: ['admin'] },
+    { icon: LayoutDashboard, label: 'Dashboard',    path: '/dashboard', color: 'cyan',    perm: 'view_dashboard' },
+    { 
+      icon: CalendarRange,   
+      label: 'Events',       
+      path: '/events',    
+      color: 'violet', 
+      perm: 'view_events',
+      subItems: [
+        { icon: PlusCircle,      label: 'Registration',  path: '/registration', color: 'emerald', perm: 'register_visitors' },
+        { icon: FileText,        label: 'Media Registration', path: '/media-registration', color: 'indigo', perm: 'register_media' },
+        { icon: Building2,       label: 'Exhibitors',    path: '/exhibitors',  color: 'indigo', perm: 'manage_users' },
+        { icon: ClipboardCheck,  label: 'Review Queue',   path: '/reviews',   color: 'amber', perm: 'review_queue' },
+        { icon: ShieldCheck,     label: 'Audit Correction', path: '/audit-correction', color: 'cyan', perm: 'audit_records' },
+        { icon: Printer,         label: 'Pre-Print Badges', path: '/pre-print', color: 'indigo',  perm: 'print_badges' },
+        { icon: FileImage,       label: 'Pre-Print Forms', path: '/pre-print-forms', color: 'pink',  perm: 'print_badges' },
+      ]
+    },
+    { icon: Users,           label: 'Personnel',     path: '/users',     color: 'blue',   perm: 'manage_users' },
+    { icon: RefreshCcw,      label: 'Sync Records',  path: '/sync',      color: 'amber',   perm: 'sync_records' },
+    { icon: ShieldCheck,     label: 'Activity Logs', path: '/logs',      color: 'violet', perm: 'view_logs' },
+    { icon: ShieldCheck,     label: 'Roles',         path: '/roles',       color: 'purple', perm: 'manage_users' },
+    { icon: User,            label: 'My Profile',    path: '/profile',     color: 'purple' },
+    { icon: Settings,        label: 'Settings',      path: '/settings',  color: 'slate',  perm: 'manage_settings' },
+  ].filter(item => {
+    if (user.role?.name === 'admin') return true;
+    if (!item.perm) return true;
+    const hasPerm = user.role?.permissions?.some(p => p.name === item.perm);
+    if (item.subItems) {
+      item.subItems = item.subItems.filter(sub => {
+        if (!sub.perm) return true;
+        return user.role?.permissions?.some(p => p.name === sub.perm);
+      });
+      return item.subItems.length > 0 || hasPerm;
+    }
+    return hasPerm;
+  });
 
-    { icon: ClipboardCheck,  label: 'Review Queue',   path: '/reviews',   color: 'purple', roles: ['admin', 'auditor'] },
-    { icon: ShieldCheck,     label: 'Audit Correction', path: '/audit-correction', color: 'cyan', roles: ['admin', 'auditor'] },
-    { icon: Printer,         label: 'Pre-Print Badges', path: '/pre-print', color: 'indigo',  roles: ['admin'] },
-    { icon: FileImage,       label: 'Pre-Print Forms', path: '/pre-print-forms', color: 'pink',  roles: ['admin'] },
-    { icon: RefreshCcw,      label: 'Sync Records',  path: '/sync',      color: 'amber',   roles: ['admin'] },
-    { icon: ShieldCheck,     label: 'Activity Logs', path: '/logs',      color: 'violet', roles: ['admin'] },
-    { icon: Settings,        label: 'Settings',      path: '/settings',  color: 'slate',  roles: ['admin'] },
-  ].filter(item => item.roles.includes(user.role));
+  const [openMenus, setOpenMenus] = useState(['Events']);
+
+  const toggleMenu = (label) => {
+    setOpenMenus(prev => 
+      prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label]
+    );
+  };
 
   return (
     <>
@@ -88,33 +120,96 @@ const Sidebar = ({ isOpen, onClose }) => {
         </div>
         
         {/* Navigation */}
-        <nav className="flex-1 px-4 space-y-2 mt-4 relative overflow-y-auto overflow-x-hidden">
+        <nav className="flex-1 px-4 space-y-2 mt-4 relative overflow-y-auto overflow-x-hidden pb-10 custom-scrollbar">
           {!isMinimized && <div className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] mb-4 px-4">Main Control Panel</div>}
           {menuItems.map((item, index) => {
-            const active = location.pathname === item.path;
+            const hasSub = item.subItems && item.subItems.length > 0;
+            const isSubOpen = openMenus.includes(item.label);
+            const isAnySubActive = hasSub && item.subItems.some(sub => location.pathname === sub.path);
+            const active = location.pathname === item.path || isAnySubActive;
+            
             return (
-              <Link
-                key={index}
-                to={item.path}
-                title={isMinimized ? item.label : undefined}
-                onClick={() => { if(window.innerWidth < 1024) onClose(); }}
-                className={`flex items-center ${isMinimized ? 'justify-center p-3' : 'justify-between p-3.5'} rounded-2xl transition-all duration-300 group relative ${
-                  active 
-                    ? `bg-${item.color}-500/10 text-${item.color}-600 dark:text-white border border-${item.color}-500/20` 
-                    : 'hover:bg-slate-100 dark:hover:bg-slate-900/50 hover:text-slate-900 dark:hover:text-slate-200 border border-transparent'
-                }`}
-              >
-                <div className={`flex items-center ${isMinimized ? 'justify-center' : 'space-x-4'}`}>
-                  <item.icon className={`h-5 w-5 ${active ? `text-${item.color}-500` : 'text-slate-400 dark:text-slate-600 group-hover:text-slate-600 dark:group-hover:text-slate-400'} transition-colors duration-300`} />
-                  {!isMinimized && <span className={`font-black text-xs uppercase tracking-widest ${active ? 'text-slate-900 dark:text-white' : 'group-hover:text-slate-900 dark:group-hover:text-white'}`}>{item.label}</span>}
-                </div>
-                {active && !isMinimized && (
-                   <div className={`h-1.5 w-1.5 rounded-full bg-${item.color}-500 shadow-[0_0_8px_rgba(34,211,238,0.8)] animate-pulse`} />
+              <div key={index} className="space-y-1">
+                {hasSub ? (
+                  <div className="relative group/parent">
+                    <Link
+                      to={item.path}
+                      title={isMinimized ? item.label : undefined}
+                      onClick={() => { if(window.innerWidth < 1024 && !hasSub) onClose(); }}
+                      className={`flex items-center ${isMinimized ? 'justify-center p-3' : 'justify-between p-3.5'} rounded-2xl transition-all duration-300 relative ${
+                        active 
+                          ? `bg-${item.color}-500/10 text-${item.color}-600 dark:text-white border border-${item.color}-500/20 shadow-sm` 
+                          : 'hover:bg-slate-100 dark:hover:bg-slate-900/50 hover:text-slate-900 dark:hover:text-slate-200 border border-transparent'
+                      }`}
+                    >
+                      <div className={`flex items-center ${isMinimized ? 'justify-center' : 'space-x-4'}`}>
+                        <item.icon className={`h-5 w-5 ${active ? `text-${item.color}-500` : 'text-slate-400 dark:text-slate-600 group-hover:text-slate-600 dark:group-hover:text-slate-400'} transition-colors duration-300`} />
+                        {!isMinimized && <span className={`font-black text-xs uppercase tracking-widest ${active ? 'text-slate-900 dark:text-white' : 'group-hover:text-slate-900 dark:group-hover:text-white'}`}>{item.label}</span>}
+                      </div>
+                      
+                      {/* Spacer for toggle */}
+                      {!isMinimized && <div className="w-8" />}
+                    </Link>
+
+                    {/* Separate Toggle Button */}
+                    {!isMinimized && (
+                      <button 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          toggleMenu(item.label);
+                        }}
+                        className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors ${isSubOpen ? 'text-cyan-500' : 'text-slate-400'}`}
+                      >
+                        <ChevronLeft className={`h-4 w-4 transition-transform duration-300 ${isSubOpen ? '-rotate-90' : ''}`} />
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <Link
+                    to={item.path}
+                    title={isMinimized ? item.label : undefined}
+                    onClick={() => { if(window.innerWidth < 1024) onClose(); }}
+                    className={`flex items-center ${isMinimized ? 'justify-center p-3' : 'justify-between p-3.5'} rounded-2xl transition-all duration-300 group relative ${
+                      active 
+                        ? `bg-${item.color}-500/10 text-${item.color}-600 dark:text-white border border-${item.color}-500/20 shadow-sm` 
+                        : 'hover:bg-slate-100 dark:hover:bg-slate-900/50 hover:text-slate-900 dark:hover:text-slate-200 border border-transparent'
+                    }`}
+                  >
+                    <div className={`flex items-center ${isMinimized ? 'justify-center' : 'space-x-4'}`}>
+                      <item.icon className={`h-5 w-5 ${active ? `text-${item.color}-500` : 'text-slate-400 dark:text-slate-600 group-hover:text-slate-600 dark:group-hover:text-slate-400'} transition-colors duration-300`} />
+                      {!isMinimized && <span className={`font-black text-xs uppercase tracking-widest ${active ? 'text-slate-900 dark:text-white' : 'group-hover:text-slate-900 dark:group-hover:text-white'}`}>{item.label}</span>}
+                    </div>
+                    {active && !isMinimized && (
+                      <div className={`h-1.5 w-1.5 rounded-full bg-${item.color}-500 shadow-[0_0_8px_rgba(34,211,238,0.8)] animate-pulse`} />
+                    )}
+                  </Link>
                 )}
-                {active && isMinimized && (
-                   <div className={`absolute top-0 bottom-0 left-0 w-1 rounded-r-full bg-${item.color}-500`} />
+
+                {/* Submenu Items */}
+                {hasSub && isSubOpen && !isMinimized && (
+                  <div className="ml-6 pl-4 border-l border-slate-200 dark:border-slate-800 space-y-1 mt-1 animate-in slide-in-from-top-2 duration-300">
+                    {item.subItems.map((sub, subIdx) => {
+                      const subActive = location.pathname === sub.path;
+                      return (
+                        <Link
+                          key={subIdx}
+                          to={sub.path}
+                          onClick={() => { if(window.innerWidth < 1024) onClose(); }}
+                          className={`flex items-center space-x-3 p-2.5 rounded-xl transition-all duration-200 ${
+                            subActive 
+                              ? 'text-cyan-500 font-bold bg-cyan-500/5' 
+                              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900/30'
+                          }`}
+                        >
+                          <sub.icon className={`h-4 w-4 ${subActive ? 'text-cyan-500' : 'text-slate-400 dark:text-slate-600'}`} />
+                          <span className="text-[10px] uppercase font-black tracking-widest">{sub.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
                 )}
-              </Link>
+              </div>
             );
           })}
         </nav>
@@ -147,18 +242,30 @@ const Sidebar = ({ isOpen, onClose }) => {
           </button>
 
           {/* Admin / User Profile info & Logout */}
-          <button 
-            onClick={logout}
-            className={`mt-3 w-full flex items-center ${isMinimized ? 'justify-center p-3 text-red-500' : 'justify-start space-x-3 p-4 text-slate-500 hover:text-red-500'} rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden relative group`}
-          >
-             <LogOut className={`h-4 w-4 ${isMinimized ? '' : 'shrink-0 group-hover:-translate-x-1 transition-transform'}`} />
-             {!isMinimized && (
-               <div className="text-left flex-1 min-w-0">
-                  <div className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white leading-none mb-1 truncate">{user?.name}</div>
-                  <div className="text-[9px] font-bold uppercase tracking-widest leading-none opacity-60 truncate">{user?.role}</div>
-               </div>
-             )}
-          </button>
+          <div className={`mt-3 w-full flex items-center ${isMinimized ? 'flex-col space-y-2' : 'space-x-2'} bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-2 shadow-sm`}>
+             <button 
+                onClick={() => navigate('/profile')}
+                title="Account Settings"
+                className={`flex items-center flex-1 min-w-0 p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${isMinimized ? 'justify-center w-full' : 'space-x-3 text-left'}`}
+             >
+                <div className="h-8 w-8 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center shrink-0">
+                   <User className="h-4 w-4" />
+                </div>
+                {!isMinimized && (
+                   <div className="flex-1 min-w-0 overflow-hidden">
+                      <div className="text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white leading-none mb-1 truncate">{user?.name}</div>
+                      <div className="text-[9px] font-bold uppercase tracking-widest leading-none opacity-60 truncate text-slate-500">{user?.role?.display_name}</div>
+                   </div>
+                )}
+             </button>
+             <button 
+                onClick={logout}
+                title="Logout"
+                className="p-2.5 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all shrink-0"
+             >
+                <LogOut className="h-4 w-4" />
+             </button>
+          </div>
 
           {!isMinimized && (
           <div className="mt-4 px-4 flex items-center justify-between opacity-50">

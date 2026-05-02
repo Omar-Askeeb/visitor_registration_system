@@ -27,6 +27,9 @@ class AuthController extends Controller
             return response()->json(['message' => 'بيانات الدخول غير صحيحة'], 401);
         }
 
+        // Enforce single session per user
+        $user->tokens()->delete();
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         ActivityLog::create([
@@ -38,7 +41,7 @@ class AuthController extends Controller
 
         return response()->json([
             'token' => $token,
-            'user'  => $user,
+            'user'  => $user->load('role.permissions'),
         ]);
     }
 
@@ -57,6 +60,33 @@ class AuthController extends Controller
 
     public function me(Request $request): JsonResponse
     {
-        return response()->json($request->user());
+        return response()->json($request->user()->load('role.permissions'));
+    }
+
+    public function updateProfile(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'name'     => 'sometimes|required|string|max:255',
+            'email'    => 'sometimes|required|email|unique:users,email,' . $user->id,
+            'phone'    => 'nullable|string|max:20',
+            'password' => 'nullable|string|min:6',
+        ]);
+
+        if (isset($validated['password'])) {
+            $validated['password'] = Hash::make($validated['password']);
+        }
+
+        $user->update($validated);
+
+        ActivityLog::create([
+            'user_id'     => $user->id,
+            'action'      => 'update_profile',
+            'description' => 'تحديث الملف الشخصي',
+            'ip_address'  => $request->ip(),
+        ]);
+
+        return response()->json($user->load('role.permissions'));
     }
 }

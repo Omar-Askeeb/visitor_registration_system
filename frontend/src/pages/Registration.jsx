@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   CalendarDays, MapPin, ArrowRight, Loader2, Search,
   CheckCircle2, AlertTriangle, X, RefreshCw, Printer,
-  Save, Eraser, BadgeCheck, ToggleLeft, ToggleRight,
+  Save, Eraser, BadgeCheck, ToggleLeft, ToggleRight, ChevronDown,
 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { openPrintWindow } from '../utils/printBadge';
@@ -29,12 +29,17 @@ const DEFAULT_LAYOUT = {
 
 const mergeLayout = (saved) => {
   if (!saved || typeof saved !== 'object') return DEFAULT_LAYOUT;
+  
+  // Handle nested layout structure { visitor: {...}, exhibitor: {...} }
+  const layout = saved.visitor || saved;
+
   return {
-    pageWidth:  saved.pageWidth  || DEFAULT_LAYOUT.pageWidth,
-    pageHeight: saved.pageHeight || DEFAULT_LAYOUT.pageHeight,
-    name:       { ...DEFAULT_LAYOUT.name,    ...(saved.name    || {}) },
-    barcode:    { ...DEFAULT_LAYOUT.barcode, ...(saved.barcode || {}) },
-    qrCode:     { ...DEFAULT_LAYOUT.qrCode,  ...(saved.qrCode  || {}) },
+    pageWidth:  layout.pageWidth  || DEFAULT_LAYOUT.pageWidth,
+    pageHeight: layout.pageHeight || DEFAULT_LAYOUT.pageHeight,
+    margins:    layout.margins    || { top: 0, bottom: 0, left: 0, right: 0 },
+    name:       { ...DEFAULT_LAYOUT.name,    ...(layout.name    || {}) },
+    barcode:    { ...DEFAULT_LAYOUT.barcode, ...(layout.barcode || {}) },
+    qrCode:     { ...DEFAULT_LAYOUT.qrCode,  ...(layout.qrCode  || {}) },
   };
 };
 
@@ -51,7 +56,7 @@ const EventSelector = ({ onSelect }) => {
   useEffect(() => {
     fetch(`${API}/events`, { headers: { Accept: 'application/json' } })
       .then(r => r.json())
-      .then(data => setEvents(data.filter(e => e.status === 'active')))
+      .then(data => setEvents(data.filter(e => e.status === 'active' || e.is_training === 1 || e.is_training === true)))
       .catch(() => setEvents([]))
       .finally(() => setLoading(false));
   }, []);
@@ -95,8 +100,12 @@ const EventSelector = ({ onSelect }) => {
                 <div className="h-12 w-12 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-cyan-500/30 shrink-0">
                   <CalendarDays className="h-6 w-6 text-white" />
                 </div>
-                <span className="text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-full">
-                  Active
+                <span className={`text-[9px] font-black uppercase tracking-widest border px-3 py-1 rounded-full ${
+                  ev.is_training 
+                    ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' 
+                    : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                }`}>
+                  {ev.is_training ? 'Training Mode' : 'Active'}
                 </span>
               </div>
               <h3 className="font-black text-slate-900 dark:text-white text-lg mb-1">{ev.name}</h3>
@@ -144,24 +153,71 @@ const ArabicInput = ({ label, name, type = 'text', value, onChange, onKeyDown, d
   </div>
 );
 
-const ArabicSelect = ({ label, name, value, onChange, onKeyDown, disabled, inputRef, options }) => (
-  <div>
-    <label className="block text-[11px] font-black text-slate-500 dark:text-slate-400 mb-1.5 text-right">
-      {label}:
-    </label>
-    <select
-      ref={inputRef}
-      name={name}
-      value={value ?? ''}
-      onChange={onChange}
-      onKeyDown={onKeyDown}
-      disabled={disabled}
-      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white text-right focus:outline-none focus:ring-2 focus:ring-cyan-500/40 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-    >
-      {options.map(o => <option key={o} value={o}>{o}</option>)}
-    </select>
-  </div>
-);
+const ArabicSelect = ({ label, name, value, onChange, disabled, options }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className="flex flex-col" ref={containerRef}>
+      <label className="block text-[11px] font-black text-slate-500 dark:text-slate-400 mb-1.5 text-right">
+        {label}:
+      </label>
+      <div className="relative">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => setIsOpen(!isOpen)}
+          className={`w-full flex items-center justify-between bg-white dark:bg-slate-900 border ${
+            isOpen 
+              ? 'border-cyan-500 ring-4 ring-cyan-500/10' 
+              : 'border-slate-200 dark:border-slate-700'
+          } rounded-xl px-4 py-2.5 text-sm text-slate-900 dark:text-white transition-all duration-300 disabled:opacity-40`}
+          dir="rtl"
+        >
+          <span className="font-semibold">{value}</span>
+          <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform duration-500 ${isOpen ? 'rotate-180 text-cyan-500' : ''}`} />
+        </button>
+
+        {isOpen && (
+          <div className="absolute z-[100] mt-2 w-full bg-white dark:bg-[#0c1325] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl overflow-hidden p-1.5 animate-in fade-in zoom-in-95 duration-300" dir="rtl">
+            <div className="max-h-60 overflow-y-auto custom-scrollbar">
+              {options.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => {
+                    onChange({ target: { name, value: opt } });
+                    setIsOpen(false);
+                  }}
+                  className={`w-full text-right px-4 py-2.5 text-sm rounded-xl transition-all duration-200 flex items-center justify-between ${
+                    value === opt
+                      ? 'bg-gradient-to-l from-cyan-500 to-blue-600 text-white font-bold'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <span>{opt}</span>
+                  {value === opt && (
+                    <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 /* ——————————————————————————————————————————————————————— */
 const RegistrationForm = ({ event, onBack, countryOptions = [] }) => {
@@ -768,17 +824,22 @@ const RegistrationForm = ({ event, onBack, countryOptions = [] }) => {
             <div className={`bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 transition-opacity ${inputDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
               <div className="text-[11px] font-black text-slate-500 dark:text-slate-400 mb-3 text-right">مجالات العمل</div>
               <div className="space-y-2" dir="rtl">
-                {(event.workfield_options || []).map(opt => (
-                  <label key={opt} className="flex items-center gap-2 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={(form.workfield || []).includes(opt)}
-                      onChange={() => toggleArray('workfield', opt)}
-                      className="h-4 w-4 accent-cyan-500 rounded"
-                    />
-                    <span className="text-xs text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{opt}</span>
-                  </label>
-                ))}
+                {(event.workfield_options || []).map((opt, idx) => {
+                  const isObj = typeof opt === 'object' && opt !== null;
+                  const label = isObj ? opt.ar : opt;
+                  const val   = isObj ? opt.ar : opt;
+                  return (
+                    <label key={idx} className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={(form.workfield || []).includes(val)}
+                        onChange={() => toggleArray('workfield', val)}
+                        className="h-4 w-4 accent-cyan-500 rounded"
+                      />
+                      <span className="text-xs text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{label}</span>
+                    </label>
+                  );
+                })}
                 {(event.workfield_options || []).length === 0 && <span className="text-[10px] italic text-slate-400">لا توجد خيارات متاحة</span>}
               </div>
             </div>
@@ -787,17 +848,22 @@ const RegistrationForm = ({ event, onBack, countryOptions = [] }) => {
             <div className={`bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 transition-opacity ${inputDisabled ? 'opacity-40 pointer-events-none' : ''}`}>
               <div className="text-[11px] font-black text-slate-500 dark:text-slate-400 mb-3 text-right">كيف علمت بالمعرض؟</div>
               <div className="space-y-2" dir="rtl">
-                {(event.howexpo_options || []).map(opt => (
-                  <label key={opt} className="flex items-center gap-2 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={(form.howexpo || []).includes(opt)}
-                      onChange={() => toggleArray('howexpo', opt)}
-                      className="h-4 w-4 accent-cyan-500 rounded"
-                    />
-                    <span className="text-xs text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{opt}</span>
-                  </label>
-                ))}
+                {(event.howexpo_options || []).map((opt, idx) => {
+                  const isObj = typeof opt === 'object' && opt !== null;
+                  const label = isObj ? opt.ar : opt;
+                  const val   = isObj ? opt.ar : opt;
+                  return (
+                    <label key={idx} className="flex items-center gap-2 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={(form.howexpo || []).includes(val)}
+                        onChange={() => toggleArray('howexpo', val)}
+                        className="h-4 w-4 accent-cyan-500 rounded"
+                      />
+                      <span className="text-xs text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{label}</span>
+                    </label>
+                  );
+                })}
                 {(event.howexpo_options || []).length === 0 && <span className="text-[10px] italic text-slate-400">لا توجد خيارات متاحة</span>}
               </div>
             </div>

@@ -81,10 +81,11 @@ class DashboardController extends Controller
         });
 
         // Get Top 3 Personnel
-        $topPersonnel = User::withCount(['visitorsCreated', 'verifiedRecords'])
+        $topPersonnel = User::with('role')
+            ->withCount(['visitorsCreated', 'verifiedRecords'])
             ->orderByRaw('(visitors_created_count + verified_records_count) DESC')
             ->limit(3)
-            ->get(['id', 'name', 'role']);
+            ->get();
 
         return response()->json([
             'events' => $stats,
@@ -100,7 +101,7 @@ class DashboardController extends Controller
             'top_personnel' => $topPersonnel->map(fn($u) => [
                 'id'      => $u->id,
                 'name'    => $u->name,
-                'role'    => $u->role,
+                'role'    => $u->role?->display_name ?? 'Personnel',
                 'actions' => $u->visitors_created_count + $u->verified_records_count,
             ]),
         ]);

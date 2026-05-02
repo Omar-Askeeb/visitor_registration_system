@@ -6,6 +6,7 @@ use App\Models\Event;
 use App\Models\SyncLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Artisan;
+use App\Jobs\SyncEventVisitorsJob;
 
 class SyncController extends Controller
 {
@@ -50,10 +51,13 @@ class SyncController extends Controller
     public function pulse(): JsonResponse
     {
         try {
-            Artisan::call('sync:visitors');
-            return response()->json(['message' => 'Pulse processed.']);
+            $events = Event::where('sync_enabled', true)->get();
+            foreach ($events as $event) {
+                SyncEventVisitorsJob::dispatch($event);
+            }
+            return response()->json(['message' => 'Sync jobs dispatched for all enabled events.']);
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Pulse failed.', 'error' => $e->getMessage()], 500);
+            return response()->json(['message' => 'Dispatch failed.', 'error' => $e->getMessage()], 500);
         }
     }
 
@@ -67,33 +71,17 @@ class SyncController extends Controller
         }
 
         try {
-            // Call the sync command
-            Artisan::call('sync:visitors', [
-                '--event_id' => $event->id,
-            ]);
-
-            // Get the last log
-            $lastLog = SyncLog::where('event_id', $event->id)
-                ->orderBy('created_at', 'desc')
-                ->first();
-
-            if ($lastLog && $lastLog->status === 'success') {
-                return response()->json([
-                    'message' => 'Sync completed successfully.',
-                    'added' => $lastLog->records_added,
-                    'fetched' => $lastLog->records_fetched,
-                    'last_sync' => $lastLog->created_at->format('Y-m-d H:i:s'),
-                ]);
-            }
+            // Dispatch the background job
+            SyncEventVisitorsJob::dispatch($event);
 
             return response()->json([
-                'message' => 'Sync failed or finished with errors.',
-                'error' => $lastLog ? $lastLog->error_message : 'Unknown error',
-            ], 500);
+                'message' => 'Sync job has been queued in the background. It will process in a few seconds.',
+                'status' => 'queued'
+            ]);
 
         } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Sync failed.',
+                'message' => 'Failed to queue sync job.',
                 'error' => $e->getMessage(),
             ], 500);
         }

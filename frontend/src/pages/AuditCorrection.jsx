@@ -13,8 +13,10 @@ import {
   X,
   MapPin,
   CalendarDays,
-  BadgeCheck
+  BadgeCheck,
+  ChevronDown,
 } from 'lucide-react';
+import CustomSelect from '../components/CustomSelect';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 
 const API = import.meta.env.VITE_API_URL || '/api';
@@ -154,14 +156,13 @@ const AuditCorrection = () => {
 
         <div className="flex flex-col md:flex-row gap-4 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 p-4 rounded-3xl shadow-sm">
           <div className="md:w-1/3">
-            <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-1">Exhibition</label>
-            <select
+            <CustomSelect
+              label="Exhibition"
               value={selectedEventId}
-              onChange={(e) => setSelectedEventId(e.target.value)}
-              className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-cyan-500/40 transition-all cursor-pointer"
-            >
-              {events.map(ev => <option key={ev.id} value={ev.id}>{ev.name}</option>)}
-            </select>
+              options={events.map(ev => ({ value: ev.id, label: ev.name }))}
+              onChange={val => setSelectedEventId(val)}
+              required
+            />
           </div>
           <div className="flex-1 relative">
             <label className="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2 ml-1">Form ID / Scanner</label>
@@ -323,22 +324,27 @@ const SelectionGroup = ({ label, options, selected, onToggle, color = 'cyan' }) 
       {label}
     </label>
     <div className="flex flex-wrap gap-2">
-      {options.map(opt => (
-        <button
-          key={opt}
-          type="button"
-          onClick={() => onToggle(opt)}
-          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-            selected?.includes(opt)
-              ? (color === 'indigo'
-                  ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30'
-                  : 'bg-cyan-600 text-white shadow-lg shadow-cyan-500/30')
-              : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-          }`}
-        >
-          {opt}
-        </button>
-      ))}
+      {options.map((opt, idx) => {
+        const isObj = typeof opt === 'object' && opt !== null;
+        const label = isObj ? opt.ar : opt;
+        const val   = isObj ? opt.ar : opt;
+        return (
+          <button
+            key={idx}
+            type="button"
+            onClick={() => onToggle(val)}
+            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              selected?.includes(val)
+                ? (color === 'indigo'
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30'
+                    : 'bg-cyan-600 text-white shadow-lg shadow-cyan-500/30')
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+          >
+            {label}
+          </button>
+        );
+      })}
     </div>
   </div>
 );
