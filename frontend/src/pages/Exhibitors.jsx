@@ -476,7 +476,7 @@ export default function Exhibitors() {
                 <tr><td colSpan={7} className="text-center py-16 text-slate-400 font-bold">No exhibitors found.</td></tr>
               )}
               {exhibitors.map(exh => (
-                <tr key={exh.id} className={`border-b border-slate-100 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group ${selected.includes(exh.id) ? 'bg-purple-50/30 dark:bg-purple-900/10' : ''}`}>
+                <tr key={exh.id} className={`exhibitor-row border-b border-slate-100 dark:border-slate-800/50 group relative ${selected.includes(exh.id) ? 'bg-purple-50/50 dark:bg-purple-900/20' : ''}`}>
                   <td className="px-4 py-4">
                     <input type="checkbox" checked={selected.includes(exh.id)} onChange={() => toggleSelect(exh.id)} className="h-4 w-4 accent-purple-500 rounded" />
                   </td>
@@ -545,29 +545,29 @@ export default function Exhibitors() {
                     </div>
                   </td>
                   <td className="px-4 py-4">
-                    <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-end space-x-1">
                       <button onClick={() => { printExhibitorBadge(exh, getEventLayout()); }} title="Print"
-                        className="p-2 rounded-lg text-slate-400 hover:text-purple-500 hover:bg-purple-500/10 transition-all">
+                        className="action-btn btn-purple p-2 rounded-xl text-slate-400">
                         <Printer className="h-4 w-4" />
                       </button>
                       {exh.type === 'local' && !exh.badges_received && (
                         <button onClick={() => handleMarkReceived(exh)} title="Mark badges received"
-                          className="p-2 rounded-lg text-slate-400 hover:text-emerald-500 hover:bg-emerald-500/10 transition-all">
+                          className="action-btn btn-emerald p-2 rounded-xl text-slate-400">
                           <CheckCircle2 className="h-4 w-4" />
                         </button>
                       )}
                       {exh.number_of_vip_cards > 0 && !exh.vip_cards_received && (
                         <button onClick={() => handleToggleVIPReceived(exh)} title="Mark VIP received"
-                          className="p-2 rounded-lg text-slate-400 hover:text-amber-500 hover:bg-amber-500/10 transition-all">
+                          className="action-btn btn-amber p-2 rounded-xl text-slate-400">
                           <Zap className="h-4 w-4" />
                         </button>
                       )}
                       <button onClick={() => { setEditTarget(exh); setModalOpen(true); }} title="Edit"
-                        className="p-2 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-500/10 transition-all">
+                        className="action-btn btn-blue p-2 rounded-xl text-slate-400">
                         <Edit3 className="h-4 w-4" />
                       </button>
                       <button onClick={() => handleDelete(exh.id)} title="Delete"
-                        className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-500/10 transition-all">
+                        className="action-btn btn-red p-2 rounded-xl text-slate-400">
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>

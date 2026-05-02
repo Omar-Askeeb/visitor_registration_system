@@ -29,3 +29,33 @@ html, body {
   width: 100%;
   overflow: hidden;
 }
+
+/* ─────── Custom Hover System ─────── */
+.exhibitor-row {
+  transition: all 0.2s ease;
+}
+
+.exhibitor-row:hover {
+  background-color: rgba(226, 232, 240, 0.8) !important; /* slate-200/80 */
+}
+
+.dark .exhibitor-row:hover {
+  background-color: rgba(30, 41, 59, 0.9) !important; /* slate-800/90 */
+}
+
+.action-btn {
+  transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+  color: white !important;
+  transform: scale(1.1);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2) !important;
+}
+
+.btn-purple:hover  { background-color: #9333ea !important; }
+.btn-emerald:hover { background-color: #059669 !important; }
+.btn-amber:hover   { background-color: #d97706 !important; }
+.btn-blue:hover    { background-color: #2563eb !important; }
+.btn-red:hover     { background-color: #dc2626 !important; }
+

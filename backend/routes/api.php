@@ -8,6 +8,7 @@ use App\Http\Controllers\VisitorController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\MediaAgentController;
 use App\Http\Controllers\BackupController;
+use App\Http\Controllers\ExportController;
 
 
 // --- Public Auth ---
@@ -66,6 +67,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/events/{event}/push-data', [EventController::class, 'pushData']);
     Route::get('/users', [UserController::class, 'index']);
     Route::get('/countries', [CountryController::class, 'index']);
+
+    // --- Export Routes ---
+    Route::get('/events/{event}/export/visitors', [ExportController::class, 'exportVisitors']);
+    Route::get('/events/{event}/export/scans', [ExportController::class, 'exportScans']);
 
     // --- Visitor routes ---
     Route::prefix('events/{event}/visitors')->group(function () {

@@ -48,10 +48,9 @@ class RoleController extends Controller
 
     public function update(Request $request, Role $role): JsonResponse
     {
-        if (in_array($role->name, ['admin', 'data_entry', 'auditor', 'self_service_device'])) {
-            return response()->json(['message' => 'Cannot modify default system roles'], 403);
-        }
-
+        // Prevent changing system names for default roles
+        $isSystemRole = in_array($role->name, ['admin', 'data_entry', 'auditor', 'self_service_device']);
+        
         $validated = $request->validate([
             'name'         => 'sometimes|required|string|unique:roles,name,' . $role->id,
             'display_name' => 'sometimes|required|string',
@@ -60,6 +59,10 @@ class RoleController extends Controller
             'permissions'  => 'array',
             'permissions.*'=> 'exists:permissions,id',
         ]);
+
+        if ($isSystemRole && isset($validated['name'])) {
+            unset($validated['name']);
+        }
 
         $role->update($validated);
 

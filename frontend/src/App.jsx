@@ -12,6 +12,7 @@ import ReviewForms from './pages/ReviewForms';
 import SyncRecords from './pages/SyncRecords';
 import Settings from './pages/Settings';
 import EventManagement from './pages/EventManagement';
+import DataExport from './pages/DataExport';
 import Login from './pages/Login';
 import ActivityLogs from './pages/ActivityLogs';
 import AuditCorrection from './pages/AuditCorrection';
@@ -83,6 +84,7 @@ function App() {
             <Route path="/settings" element={<ProtectedRoute element={<Settings />} requiredPermission="manage_settings" />} />
             <Route path="/sync" element={<ProtectedRoute element={<SyncRecords />} requiredPermission="sync_records" />} />
             <Route path="/logs" element={<ProtectedRoute element={<ActivityLogs />} requiredPermission="view_logs" />} />
+            <Route path="/export" element={<ProtectedRoute element={<DataExport />} requiredPermission="manage_settings" />} />
             <Route path="/pre-print" element={<ProtectedRoute element={<PrePrintBadges />} requiredPermission="print_badges" />} />
             <Route path="/pre-print-forms" element={<ProtectedRoute element={<PrePrintForms />} requiredPermission="print_badges" />} />
             

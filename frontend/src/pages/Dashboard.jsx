@@ -26,6 +26,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import EventInsightsModal from '../components/EventInsightsModal';
 import PersonnelStatsModal from '../components/PersonnelStatsModal';
+import CustomSelect from '../components/CustomSelect';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -38,6 +39,7 @@ const Dashboard = () => {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [statsEventId, setStatsEventId] = useState('all');
   const [performanceUserId, setPerformanceUserId] = useState(null);
 
   const load = async () => {
@@ -63,6 +65,20 @@ const Dashboard = () => {
     load();
   }, []);
 
+  const filteredEventsForStats = statsEventId === 'all' 
+    ? data.events 
+    : data.events.filter(e => e.id.toString() === statsEventId);
+
+  const filteredTotals = {
+    registered_count: filteredEventsForStats.reduce((acc, ev) => acc + (ev.registered_count || 0), 0),
+    total_attendance: filteredEventsForStats.reduce((acc, ev) => acc + (ev.total_attendance || 0), 0),
+    redundant_visits: filteredEventsForStats.reduce((acc, ev) => acc + (ev.redundant_visits || 0), 0),
+    target_visitors: filteredEventsForStats.reduce((acc, ev) => acc + (ev.target_visitors || 0), 0),
+    emails_sent: filteredEventsForStats.reduce((acc, ev) => acc + (ev.emails_sent || 0), 0),
+  };
+
+  const activeEvents = data.events.filter(e => e.status?.toLowerCase() !== 'completed' && e.status?.toLowerCase() !== 'archived');
+
   if (loading) {
     return (
       <div className="flex-1 bg-white dark:bg-[#020617] h-screen flex flex-col items-center justify-center space-y-4">
@@ -85,6 +101,11 @@ const Dashboard = () => {
     );
   }
 
+  const eventOptions = [
+    { value: 'all', label: 'All Events Combined' },
+    ...data.events.map(ev => ({ value: ev.id.toString(), label: ev.name }))
+  ];
+
   return (
     <div className="flex-1 bg-white dark:bg-gradient-to-br dark:from-[#020617] dark:via-[#0f172a] dark:to-[#020617] text-slate-900 dark:text-slate-300 p-8 selection:bg-cyan-500/30 selection:text-white transition-colors duration-300">
       
@@ -97,16 +118,22 @@ const Dashboard = () => {
             <span className="text-[10px] uppercase font-black tracking-[0.3em]">Operational Overview</span>
           </div>
           <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight mb-2 italic">Digital Group <span className="bg-gradient-to-r from-cyan-500 to-blue-600 bg-clip-text text-transparent not-italic">Events Hub</span></h1>
-          <p className="text-slate-500 font-medium max-w-xl">Enterprise-grade monitoring of registrations, scrutiny metrics, and personnel performance across the exhibition network.</p>
+          <p className="text-slate-500 font-medium max-w-xl text-sm italic">Enterprise-grade monitoring of registrations and personnel performance.</p>
         </div>
         
         <div className="flex items-center space-x-6">
-          <div className="text-right hidden md:block">
-            <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 italic">Network Uptime</div>
-            <div className="text-emerald-500 dark:text-emerald-400 font-mono font-bold">99.98% / Stable</div>
+          <div className="w-64">
+            <CustomSelect 
+              label="Global Filter"
+              value={statsEventId}
+              onChange={setStatsEventId}
+              options={eventOptions}
+              placeholder="Select Event..."
+              icon={CalendarDays}
+            />
           </div>
-          <div className="h-12 w-[1px] bg-slate-200 dark:bg-slate-800 hidden md:block" />
-          <div className="bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700/50 px-6 py-3 rounded-2xl flex items-center space-x-4 backdrop-blur-xl shadow-xl dark:shadow-2xl relative group overflow-hidden">
+          <div className="h-12 w-[1px] bg-slate-200 dark:bg-slate-800 hidden md:block mt-6" />
+          <div className="bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-700/50 px-6 py-3 rounded-2xl flex items-center space-x-4 backdrop-blur-xl shadow-xl dark:shadow-2xl relative group overflow-hidden mt-6">
              <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500" />
             <div className="h-3 w-3 bg-emerald-500 rounded-full animate-ping" />
             <span className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-widest">LIVE STATUS</span>
@@ -116,11 +143,11 @@ const Dashboard = () => {
 
       {/* Primary Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-12">
-        <StatsCard label="إجمالي المسجلين" value={data.totals.registered_count} icon={Users} trend="Registered" color="from-blue-500 to-cyan-500" />
-        <StatsCard label="إجمالي الحضور" value={data.totals.total_attendance} icon={UserCheck} trend="Attendance" color="from-emerald-500 to-teal-500" />
-        <StatsCard label="زيارات متكررة" value={data.events.reduce((acc, ev) => acc + (ev.redundant_visits || 0), 0)} icon={Repeat} trend="Redundant" color="from-purple-500 to-indigo-500" />
-        <StatsCard label="نسبة الإنجاز" value={`${Math.round((data.totals.registered_count / (data.totals.target_visitors || 1)) * 100)}%`} icon={TrendingUp} color="from-amber-500 to-orange-500" />
-        <StatsCard label="رسائل البريد" value={data.totals.emails_sent} total={data.totals.registered_count} icon={Mail} trend="Delivered" color="from-cyan-500 to-blue-500" />
+        <StatsCard label="إجمالي المسجلين" value={filteredTotals.registered_count} icon={Users} trend="Registered" color="from-blue-500 to-cyan-500" />
+        <StatsCard label="إجمالي الحضور" value={filteredTotals.total_attendance} icon={UserCheck} trend="Attendance" color="from-emerald-500 to-teal-500" />
+        <StatsCard label="زيارات متكررة" value={filteredTotals.redundant_visits} icon={Repeat} trend="Redundant" color="from-purple-500 to-indigo-500" />
+        <StatsCard label="نسبة الإنجاز" value={`${Math.round((filteredTotals.registered_count / (filteredTotals.target_visitors || 1)) * 100)}%`} icon={TrendingUp} color="from-amber-500 to-orange-500" />
+        <StatsCard label="رسائل البريد" value={filteredTotals.emails_sent} total={filteredTotals.registered_count} icon={Mail} trend="Delivered" color="from-cyan-500 to-blue-500" />
       </div>
 
 
@@ -132,10 +159,11 @@ const Dashboard = () => {
           <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 rounded-[32px] p-8 shadow-xl">
             <div className="flex items-center justify-between mb-8">
               <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">إحصائيات الفعاليات النشطة</h2>
+              <div className="px-3 py-1 bg-emerald-500/10 text-emerald-500 text-[9px] font-black uppercase rounded-full tracking-widest">Live Tracks</div>
             </div>
             
             <div className="space-y-6">
-              {data.events.map((event) => (
+              {activeEvents.map((event) => (
                 <div 
                   key={event.id} 
                   onClick={() => setSelectedEvent(event)}
@@ -190,7 +218,7 @@ const Dashboard = () => {
           <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 rounded-[32px] p-8 shadow-xl mt-8">
             <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-8">إحصائيات التقاط البيانات (Capture Statistics)</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {data.events.map(ev => (
+              {activeEvents.map(ev => (
                  <div key={ev.id} className="p-6 bg-slate-50 dark:bg-slate-900/60 rounded-[28px] border border-slate-100 dark:border-slate-800/50">
                     <div className="flex items-center justify-between mb-4">
                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{ev.name}</span>

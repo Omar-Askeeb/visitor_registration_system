@@ -26,6 +26,7 @@ return new class extends Migration
             $table->string('gender')->nullable();
             $table->string('nationality')->nullable();
             $table->string('resident')->nullable();
+            $table->integer('print_count')->default(0);
             $table->timestamps();
         });
     }

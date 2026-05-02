@@ -18,6 +18,8 @@ return new class extends Migration
             $table->integer('start_code');
             $table->integer('end_code');
             $table->integer('batch_size')->default(100);
+            $table->string('type')->default('badge')->comment('badge, form, etc');
+            $table->integer('iterative_digits')->default(0)->comment('Number of digits for iterative counter');
             $table->string('barcode_width')->nullable();
             $table->string('barcode_height')->nullable();
             $table->string('barcode_x')->nullable();

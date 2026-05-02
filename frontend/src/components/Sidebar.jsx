@@ -18,7 +18,8 @@ import {
   ShieldCheck,
   Printer,
   Building2,
-  User
+  User,
+  Download
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -54,6 +55,7 @@ const Sidebar = ({ isOpen, onClose }) => {
     },
     { icon: Users,           label: 'Personnel',     path: '/users',     color: 'blue',   perm: 'manage_users' },
     { icon: RefreshCcw,      label: 'Sync Records',  path: '/sync',      color: 'amber',   perm: 'sync_records' },
+    { icon: Download,        label: 'Data Export',   path: '/export',    color: 'emerald', perm: 'manage_settings' },
     { icon: ShieldCheck,     label: 'Activity Logs', path: '/logs',      color: 'violet', perm: 'view_logs' },
     { icon: ShieldCheck,     label: 'Roles',         path: '/roles',       color: 'purple', perm: 'manage_users' },
     { icon: User,            label: 'My Profile',    path: '/profile',     color: 'purple' },

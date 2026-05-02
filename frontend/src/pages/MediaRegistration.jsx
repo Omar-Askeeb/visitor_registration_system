@@ -132,6 +132,9 @@ const ArabicInput = ({ label, name, type = 'text', value, onChange, onKeyDown, d
 const ArabicSelect = ({ label, name, value, onChange, disabled, options }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
+  const optionsRef = useRef(null);
+  const [searchString, setSearchString] = useState('');
+  const searchTimeoutRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -140,8 +143,70 @@ const ArabicSelect = ({ label, name, value, onChange, disabled, options }) => {
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
   }, []);
+
+  // Scroll to selected option when it changes
+  useEffect(() => {
+    if (isOpen && value && optionsRef.current) {
+      const selectedEl = optionsRef.current.querySelector(`[data-value="${value}"]`);
+      if (selectedEl) {
+        selectedEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }
+  }, [value, isOpen]);
+
+  const handleKeyDown = (e) => {
+    if (disabled) return;
+
+    if (e.key === ' ' && !isOpen) {
+      e.preventDefault();
+      setIsOpen(true);
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!isOpen) {
+        setIsOpen(true);
+      } else {
+        const currentIndex = options.indexOf(value);
+        const nextIndex = (currentIndex + 1) % options.length;
+        onChange({ target: { name, value: options[nextIndex] } });
+      }
+    }
+
+    if (e.key === 'ArrowUp' && isOpen) {
+      e.preventDefault();
+      const currentIndex = options.indexOf(value);
+      const prevIndex = (currentIndex - 1 + options.length) % options.length;
+      onChange({ target: { name, value: options[prevIndex] } });
+    }
+
+    if (e.key === 'Escape') {
+      setIsOpen(false);
+    }
+
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const char = e.key.toLowerCase();
+      const newSearchString = searchString + char;
+      setSearchString(newSearchString);
+
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+      searchTimeoutRef.current = setTimeout(() => setSearchString(''), 1000);
+
+      const found = options.find(opt => 
+        String(opt).toLowerCase().startsWith(newSearchString)
+      );
+
+      if (found) {
+        onChange({ target: { name, value: found } });
+      }
+    }
+  };
 
   return (
     <div className="flex flex-col" ref={containerRef}>
@@ -153,6 +218,7 @@ const ArabicSelect = ({ label, name, value, onChange, disabled, options }) => {
           type="button"
           disabled={disabled}
           onClick={() => setIsOpen(!isOpen)}
+          onKeyDown={handleKeyDown}
           className={`w-full flex items-center justify-between bg-white dark:bg-slate-900 border ${
             isOpen 
               ? 'border-cyan-500 ring-4 ring-cyan-500/10' 
@@ -166,10 +232,11 @@ const ArabicSelect = ({ label, name, value, onChange, disabled, options }) => {
 
         {isOpen && (
           <div className="absolute z-[100] mt-2 w-full bg-white dark:bg-[#0c1325] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl overflow-hidden p-1.5 animate-in fade-in zoom-in-95 duration-300" dir="rtl">
-            <div className="max-h-60 overflow-y-auto custom-scrollbar">
+            <div ref={optionsRef} className="max-h-60 overflow-y-auto custom-scrollbar">
               {options.map((opt) => (
                 <button
                   key={opt}
+                  data-value={opt}
                   type="button"
                   onClick={() => {
                     onChange({ target: { name, value: opt } });
@@ -449,7 +516,7 @@ const RegistrationForm = ({ event, onBack, countryOptions = [] }) => {
               <div className="font-bold text-slate-900 dark:text-white text-xs">{a.first_name} {a.last_name}</div>
               <div className="text-[10px] text-slate-500">{a.organisation}</div>
               <div className="text-[10px] text-slate-400 mt-1">{a.phone1}</div>
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all duration-300">
                  <CheckCircle2 className="h-4 w-4 text-cyan-500" />
               </div>
               {a.print_count > 0 && (

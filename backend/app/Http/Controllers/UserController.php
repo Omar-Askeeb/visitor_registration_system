@@ -11,9 +11,19 @@ use Illuminate\Support\Facades\DB;
 
 class UserController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $users = User::with('role')->withCount([
+        $users = User::with('role')
+        ->when($request->role_id, fn($q) => $q->where('role_id', $request->role_id))
+        ->when($request->search, function($q) use ($request) {
+            $s = $request->search;
+            $q->where(function($sub) use ($s) {
+                $sub->where('name', 'LIKE', "%$s%")
+                    ->orWhere('email', 'LIKE', "%$s%")
+                    ->orWhere('phone', 'LIKE', "%$s%");
+            });
+        })
+        ->withCount([
             'visitorsCreated as visitors_created_count',
             'visitorsModified as visitors_updated_count',
             'fixedRecords as fixed_records_count',

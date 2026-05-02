@@ -27,7 +27,6 @@ const RoleModal = ({ role, permissions, onClose, onSave }) => {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (isDefault) return; // Cannot edit default
     setSaving(true); setError(null);
     try {
       const method = isEdit ? 'PUT' : 'POST';
@@ -81,14 +80,14 @@ const RoleModal = ({ role, permissions, onClose, onSave }) => {
 
           {isDefault && (
             <div className="flex items-center space-x-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-600 text-sm font-bold mb-4">
-              <AlertTriangle className="h-4 w-4 shrink-0" /><span>This is a system default role and cannot be modified.</span>
+              <AlertTriangle className="h-4 w-4 shrink-0" /><span>This is a system default role. Modify with caution.</span>
             </div>
           )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-black uppercase text-slate-500 mb-2">Display Name *</label>
-              <input name="display_name" value={form.display_name} onChange={handle} disabled={isDefault} required
+              <input name="display_name" value={form.display_name} onChange={handle} required
                 className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-500/40 outline-none text-slate-900 dark:text-white disabled:opacity-50" />
             </div>
             <div>
@@ -100,7 +99,7 @@ const RoleModal = ({ role, permissions, onClose, onSave }) => {
 
           <div>
             <label className="block text-[10px] font-black uppercase text-slate-500 mb-2">Description</label>
-            <input name="description" value={form.description} onChange={handle} disabled={isDefault}
+            <input name="description" value={form.description} onChange={handle}
               className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-cyan-500/40 outline-none text-slate-900 dark:text-white disabled:opacity-50" />
           </div>
 
@@ -108,8 +107,8 @@ const RoleModal = ({ role, permissions, onClose, onSave }) => {
             <label className="block text-[10px] font-black uppercase text-slate-500 mb-2">Color Label</label>
             <div className="flex flex-wrap gap-2">
               {COLORS.map(c => (
-                <button type="button" key={c} disabled={isDefault} onClick={() => setForm(prev => ({...prev, color: c}))}
-                  className={`h-8 w-8 rounded-full flex items-center justify-center border-2 transition-all disabled:opacity-50 ${form.color === c ? `border-${c}-500 shadow-md shadow-${c}-500/30 scale-110` : 'border-transparent scale-100'}`}>
+                <button type="button" key={c} onClick={() => setForm(prev => ({...prev, color: c}))}
+                  className={`h-8 w-8 rounded-full flex items-center justify-center border-2 transition-all ${form.color === c ? `border-${c}-500 shadow-md shadow-${c}-500/30 scale-110` : 'border-transparent scale-100'}`}>
                   <div className={`h-6 w-6 rounded-full bg-${c}-500`} />
                 </button>
               ))}
@@ -125,7 +124,7 @@ const RoleModal = ({ role, permissions, onClose, onSave }) => {
                   <div className="space-y-2">
                     {perms.map(p => (
                       <label key={p.id} className={`flex items-start space-x-3 p-2 rounded-lg cursor-pointer transition-colors ${form.permissions.includes(p.id) ? 'bg-cyan-500/5' : 'hover:bg-slate-50 dark:hover:bg-slate-900'}`}>
-                        <input type="checkbox" checked={form.permissions.includes(p.id)} onChange={() => togglePerm(p.id)} disabled={isDefault}
+                        <input type="checkbox" checked={form.permissions.includes(p.id)} onChange={() => togglePerm(p.id)}
                           className="mt-1 h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500" />
                         <div>
                           <div className={`text-xs font-bold ${form.permissions.includes(p.id) ? 'text-cyan-600 dark:text-cyan-400' : 'text-slate-700 dark:text-slate-300'}`}>{p.display_name}</div>
@@ -143,12 +142,10 @@ const RoleModal = ({ role, permissions, onClose, onSave }) => {
 
         <div className="px-8 pb-8 pt-4 border-t border-slate-100 dark:border-slate-800/50 flex items-center justify-end space-x-3 shrink-0">
           <button type="button" onClick={onClose} className="px-6 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-black text-xs uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-slate-800 transition-all">Cancel</button>
-          {!isDefault && (
-            <button form="roleForm" type="submit" disabled={saving} className="flex items-center space-x-2 px-8 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-black text-xs uppercase tracking-widest hover:from-purple-400 hover:to-indigo-500 shadow-lg shadow-purple-500/20 transition-all disabled:opacity-50">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              <span>{isEdit ? 'Update Role' : 'Create Role'}</span>
-            </button>
-          )}
+          <button form="roleForm" type="submit" disabled={saving} className="flex items-center space-x-2 px-8 py-3 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-black text-xs uppercase tracking-widest hover:from-purple-400 hover:to-indigo-500 shadow-lg shadow-purple-500/20 transition-all disabled:opacity-50">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            <span>{isEdit ? 'Update Role' : 'Create Role'}</span>
+          </button>
         </div>
       </div>
     </div>
@@ -212,7 +209,7 @@ export default function RolesManagement() {
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-widest">{r.name} {isSystem && '(System)'}</span>
                   </div>
                 </div>
-                <button onClick={() => { setModalRole(r); setModalOpen(true); }} className="p-2 text-slate-400 hover:text-purple-500 hover:bg-purple-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all">
+                <button onClick={() => { setModalRole(r); setModalOpen(true); }} className="action-btn btn-purple p-2 text-slate-400 rounded-xl">
                   <Pencil className="h-4 w-4" />
                 </button>
               </div>

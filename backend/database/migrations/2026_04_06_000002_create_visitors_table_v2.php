@@ -15,6 +15,7 @@ return new class extends Migration
             $table->string('badgeID')->nullable()->unique();
             $table->string('onlineRegID')->nullable()->unique()->comment('Online registration visitor ID');
             $table->string('online_source')->default('onsite');
+            $table->string('visitor_source', 30)->nullable()->after('online_source');
             $table->timestamp('online_created_at')->nullable();
             
             $table->string('visitorName')->nullable();
@@ -33,6 +34,7 @@ return new class extends Migration
             
             $table->integer('print_count')->default(0);
             $table->foreignId('creator_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('printed_by')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('modifier')->nullable()->constrained('users')->nullOnDelete();
             
             // Audit/Verification fields

@@ -26,11 +26,13 @@ return new class extends Migration
             $table->string('receiver_name')->nullable();
             $table->string('receiver_phone')->nullable();
             $table->integer('extra_badges')->default(0);
+            $table->integer('vip_cards')->default(0);
             $table->boolean('badges_received')->default(false);
             $table->timestamp('badges_received_at')->nullable();
 
             // International only — stored as JSON array: [{"name": "..."}]
             $table->json('employees')->nullable();
+            $table->string('nationality')->nullable();
 
             // Print tracking
             $table->boolean('is_printed')->default(false);

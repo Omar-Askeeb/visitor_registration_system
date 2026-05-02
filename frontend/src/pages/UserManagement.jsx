@@ -3,9 +3,11 @@ import {
   Users, Plus, Pencil, Trash2, X, Save, Loader2,
   AlertTriangle, CheckCircle2, ShieldCheck, Key,
   Eye, EyeOff, UserCog, Phone, BarChart3, ExternalLink,
+  Search, Filter, RotateCcw
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import BulkUserImportModal from '../components/BulkUserImportModal';
+import CustomSelect from '../components/CustomSelect';
 
 const API = import.meta.env.VITE_API_URL || '/api';
 
@@ -211,6 +213,9 @@ const UserManagement = () => {
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [toast, setToast]           = useState(null);
+  const [search, setSearch]         = useState('');
+  const [selectedRoleId, setSelectedRoleId] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const navigate = useNavigate();
 
   const notify = (msg, type = 'success') => {
@@ -218,15 +223,26 @@ const UserManagement = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   useEffect(() => { 
     fetchData(); 
-  }, []);
+  }, [debouncedSearch, selectedRoleId]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
+      const params = new URLSearchParams();
+      if (debouncedSearch) params.append('search', debouncedSearch);
+      if (selectedRoleId) params.append('role_id', selectedRoleId);
+
       const [uRes, rRes] = await Promise.all([
-        fetch(`${API}/users`, { headers: { Accept: 'application/json' } }),
+        fetch(`${API}/users?${params.toString()}`, { headers: { Accept: 'application/json' } }),
         fetch(`${API}/roles`, { headers: { Accept: 'application/json' } })
       ]);
       setUsers(await uRes.json());
@@ -296,6 +312,53 @@ const UserManagement = () => {
           </button>
         </div>
       </header>
+
+      {/* Search and Filters */}
+      <div className="flex flex-col md:flex-row items-center gap-4 mb-8">
+        <div className="relative flex-1 w-full">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search by name, email, or phone..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl pl-12 pr-4 py-4 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all"
+          />
+          {search && (
+            <button 
+              onClick={() => setSearch('')}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="w-full md:w-64">
+            <CustomSelect
+              value={selectedRoleId}
+              onChange={(val) => setSelectedRoleId(val)}
+              placeholder="All Roles"
+              icon={Filter}
+              options={[
+                { label: 'All Roles', value: '' },
+                ...roles.map(r => ({ label: r.display_name, value: r.id }))
+              ]}
+            />
+          </div>
+
+          {(search || selectedRoleId) && (
+            <button
+              onClick={() => { setSearch(''); setSelectedRoleId(''); }}
+              className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-blue-500 transition-all"
+              title="Reset Filters"
+            >
+              <RotateCcw className="h-5 w-5" />
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* Role summary pills */}
       <div className="flex flex-wrap gap-3 mb-8">

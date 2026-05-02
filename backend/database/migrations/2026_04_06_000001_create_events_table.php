@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('badge_id_prefix')->default('B-')->comment('e.g. LB- for Libya Build badges');
             $table->string('form_id_prefix')->default('F-')->comment('e.g. F- for form IDs');
             $table->string('online_reg_prefix')->default('ON-')->comment('e.g. ON- for online registration visitor IDs');
+            $table->string('self_service_prefix')->default('SS-')->comment('e.g. SS- for self-service registration visitor IDs');
             $table->integer('target_visitors')->default(0)->comment('Target number of visitors');
             $table->string('status')->default('upcoming')->comment('upcoming, active, completed');
             $table->string('online_slug')->nullable()->unique();
@@ -25,6 +26,8 @@ return new class extends Migration
             // Sync settings
             $table->boolean('sync_enabled')->default(0);
             $table->string('sync_url')->nullable();
+            $table->boolean('sync_push_enabled')->default(0);
+            $table->string('sync_push_url')->nullable();
             $table->integer('sync_interval')->default(60)->comment('Interval in minutes');
             $table->integer('sync_countdown')->default(0);
             
