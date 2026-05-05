@@ -444,4 +444,35 @@ class VisitorController extends Controller
             'count'   => $count,
         ]);
     }
+
+    /**
+     * Search visitors across ALL events.
+     */
+    public function globalSearch(Request $request): JsonResponse
+    {
+        $q = $request->query('q', '');
+        $eventId = $request->query('event_id');
+        
+        if (strlen($q) < 1) return response()->json([]);
+
+        $query = Visitor::where(function ($query) use ($q) {
+                $query->where('visitorName',  'like', "%{$q}%")
+                      ->orWhere('surName',     'like', "%{$q}%")
+                      ->orWhere('email',       'like', "%{$q}%")
+                      ->orWhere('phone1',      'like', "%{$q}%")
+                      ->orWhere('formID',      'like', "%{$q}%")
+                      ->orWhere('onlineRegID', 'like', "%{$q}%")
+                      ->orWhere('badgeID',     'like', "%{$q}%");
+            });
+
+        if ($eventId) {
+            $query->where('event_id', $eventId);
+        }
+
+        $visitors = $query->with(['creator:id,name', 'modifiedBy:id,name', 'verifiedBy:id,name', 'printer:id,name'])
+            ->limit(30)
+            ->get();
+
+        return response()->json($visitors);
+    }
 }

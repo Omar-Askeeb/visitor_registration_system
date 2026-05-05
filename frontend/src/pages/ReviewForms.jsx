@@ -52,6 +52,8 @@ const ReviewForms = () => {
   const [selectedCreatorId, setSelectedCreatorId] = useState('');
   const [selectedAuditorId, setSelectedAuditorId] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState(null); // null = no active search
+  const [searchLoading, setSearchLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all'); // all, pending, verified
   
   // Selection
@@ -112,6 +114,35 @@ const ReviewForms = () => {
   useEffect(() => {
     loadVisitors();
   }, [selectedEventId, selectedCreatorId, selectedAuditorId, statusFilter]);
+
+  // Backend Search Effect
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setSearchResults(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        // Use the global search endpoint to find visitors. 
+        // Pass event_id if one is selected, otherwise it searches across ALL events.
+        let url = `${API}/visitors/search?q=${encodeURIComponent(searchTerm)}`;
+        if (selectedEventId) url += `&event_id=${selectedEventId}`;
+        
+        const res = await fetch(url);
+        const data = await res.json();
+        setSearchResults(data);
+      } catch (e) {
+        console.error("Search failed:", e);
+        setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm, selectedEventId, events]);
 
   // Actions
   const handleVerify = async (visitorId, type = 'direct') => {
@@ -214,10 +245,14 @@ const ReviewForms = () => {
             </button>
           )}
           <button 
-            onClick={loadVisitors}
+            onClick={() => {
+              setSearchTerm('');
+              setSearchResults(null);
+              loadVisitors();
+            }}
             className="p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-slate-400 hover:text-purple-500 transition-all"
           >
-            <History className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+            <History className={`h-5 w-5 ${(loading || searchLoading) ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </header>
@@ -303,20 +338,22 @@ const ReviewForms = () => {
             </thead>
 
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/30">
-              {loading ? (
-                <tr><td colSpan="7" className="py-24 text-center">
+              {(loading || searchLoading) ? (
+                <tr><td colSpan="8" className="py-24 text-center">
                   <Loader2 className="h-10 w-10 animate-spin mx-auto text-purple-500/50 mb-3" />
-                  <span className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest">Loading queue…</span>
+                  <span className="text-[10px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest">
+                    {searchLoading ? 'Searching database...' : 'Loading queue...'}
+                  </span>
                 </td></tr>
-              ) : visitors.length === 0 ? (
-                <tr><td colSpan="7" className="py-24 text-center">
+              ) : (searchResults || visitors).length === 0 ? (
+                <tr><td colSpan="8" className="py-24 text-center">
                   <div className="h-16 w-16 bg-slate-100 dark:bg-slate-900/50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-slate-200 dark:border-slate-800">
                     <Check className="h-8 w-8 text-slate-300 dark:text-slate-700" />
                   </div>
                   <h3 className="text-sm font-black text-slate-900 dark:text-white">All Clear</h3>
                   <p className="text-xs text-slate-400 mt-1 uppercase tracking-widest font-bold">No records matching your filters.</p>
                 </td></tr>
-              ) : visitors.filter(v => v.visitorName?.toLowerCase().includes(searchTerm.toLowerCase()) || (v.formID && v.formID.includes(searchTerm))).map((v) => (
+              ) : (searchResults || visitors).map((v) => (
                 <tr key={v.id} className={`hover:bg-purple-500/[0.01] transition-all group ${selectedIds.includes(v.id) ? 'bg-purple-500/[0.03]' : ''}`}>
                   <td className="px-6 py-6">
                     <input 

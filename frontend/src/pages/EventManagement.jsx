@@ -653,6 +653,8 @@ const EventCard = ({ event, onEdit, onDelete, onInsights, isReadOnly, onNotify }
 
   const [resyncing, setResyncing]         = useState(false);
   const [unsyncedCount, setUnsyncedCount] = useState(null);
+  const [missingScanCount, setMissingScanCount] = useState(null);
+  const [fixingScans, setFixingScans] = useState(false);
 
   // Fetch unsynced count on mount (skip training events)
   useEffect(() => {
@@ -663,6 +665,17 @@ const EventCard = ({ event, onEdit, onDelete, onInsights, isReadOnly, onNotify }
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setUnsyncedCount(d.count); })
       .catch(() => {});
+
+    // Fetch missing scans count
+    fetch(`${API_BASE}/events/${event.id}/missing-scans`, {
+      headers: { 
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Accept': 'application/json' 
+      },
+    })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setMissingScanCount(d.length))
+      .catch(() => setMissingScanCount(0));
   }, [event.id, event.is_training]);
 
   const handleResync = async () => {
@@ -686,6 +699,13 @@ const EventCard = ({ event, onEdit, onDelete, onInsights, isReadOnly, onNotify }
       setResyncing(false);
     }
   };
+
+  const handleFixMissing = async () => {
+    if (fixingScans || !missingScanCount) return;
+    onInsights(event);
+  };
+    
+
 
   const formatDate = (d) => {
     if (!d) return '—';
@@ -829,6 +849,21 @@ const EventCard = ({ event, onEdit, onDelete, onInsights, isReadOnly, onNotify }
           >
             <TrendingUp className="h-3.5 w-3.5" />
           </button>
+
+          {/* Missing Scans Recovery Button */}
+          {missingScanCount > 0 && (
+            <button
+              onClick={handleFixMissing}
+              disabled={fixingScans}
+              className="relative flex items-center justify-center px-4 py-2.5 rounded-xl border border-amber-500/20 bg-amber-500/5 text-amber-500 hover:bg-amber-500/10 transition-all animate-pulse hover:animate-none"
+              title={`Recover ${missingScanCount} missing scans`}
+            >
+              {fixingScans ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BadgeCheck className="h-3.5 w-3.5" />}
+              <span className="absolute -top-1.5 -right-1.5 h-4 min-w-[16px] px-1 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center">
+                {missingScanCount}
+              </span>
+            </button>
+          )}
         </div>
       )}
     </div>

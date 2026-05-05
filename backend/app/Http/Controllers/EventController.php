@@ -368,7 +368,7 @@ class EventController extends Controller
         $dailySourceBreakdown = $event->visitors()
             ->select(
                 \Illuminate\Support\Facades\DB::raw("DATE(CASE WHEN visitor_source = 'online' THEN print_date ELSE created_at END) as activity_date"),
-                \Illuminate\Support\Facades\DB::raw("SUM(CASE WHEN visitor_source = 'online' AND print_count > 0 THEN 1 ELSE 0 END) as online_attended"),
+                \Illuminate\Support\Facades\DB::raw("SUM(CASE WHEN visitor_source = 'online' AND print_count > 0 AND print_date IS NOT NULL THEN 1 ELSE 0 END) as online_attended"),
                 \Illuminate\Support\Facades\DB::raw("SUM(CASE WHEN visitor_source = 'onsite' THEN 1 ELSE 0 END) as onsite_count"),
                 \Illuminate\Support\Facades\DB::raw("SUM(CASE WHEN visitor_source = 'self-service' THEN 1 ELSE 0 END) as self_service_count")
             )
@@ -433,6 +433,7 @@ class EventController extends Controller
         $onlineAttendedCount = $event->visitors()
             ->where('visitor_source', 'online')
             ->where('print_count', '>', 0)
+            ->whereNotNull('print_date')
             ->count();
 
         $onsiteCount = $event->visitors()
@@ -466,5 +467,70 @@ class EventController extends Controller
             'kiosk_print_count'    => $kioskPrintCount,
             'visit_frequency'      => $frequencyMap,
         ]);
+    }
+    /**
+     * Get visitors who printed their badges but have no scan records.
+     */
+    public function getMissingScans(Event $event): JsonResponse
+    {
+        $missing = $event->visitors()
+            ->where('print_count', '>', 0)
+            ->whereNotNull('print_date')
+            ->whereNotNull('badgeID')
+            ->where('badgeID', '!=', '')
+            ->whereNotExists(function ($query) use ($event) {
+                $query->select(\Illuminate\Support\Facades\DB::raw(1))
+                    ->from('scans')
+                    ->whereColumn('scans.barcode', 'visitors.badgeID')
+                    ->where('scans.event_id', $event->id);
+            })
+            ->get(['id', 'badgeID', 'visitorName', 'surName', 'print_date', 'created_at']);
+
+        return response()->json($missing);
+    }
+
+    /**
+     * Fix missing scans by inserting them into the scans table.
+     */
+    public function fixMissingScans(Request $request, Event $event): JsonResponse
+    {
+        $ids = $request->input('visitor_ids', []);
+        $flag = $request->input('flag');
+        
+        $visitors = $event->visitors()
+            ->whereIn('id', $ids)
+            ->where('print_count', '>', 0)
+            ->whereNotNull('badgeID')
+            ->get();
+
+        $added = 0;
+        foreach ($visitors as $visitor) {
+            $timestamp = $visitor->print_date ?: $visitor->created_at;
+            
+            // Double check if scan already exists to prevent race conditions
+            $exists = \App\Models\Scan::where('barcode', $visitor->badgeID)
+                ->where('event_id', $event->id)
+                ->exists();
+
+            if (!$exists) {
+                \App\Models\Scan::create([
+                    'barcode'      => $visitor->badgeID,
+                    'timestamp'    => $timestamp,
+                    'gate_details' => 'Auto-Recovered',
+                    'event_id'     => $event->id,
+                    'flag'         => $flag
+                ]);
+                $added++;
+            }
+        }
+
+        ActivityLog::create([
+            'user_id'     => auth()->id(),
+            'action'      => 'fix_missing_scans',
+            'description' => "🛠️ Fixed {$added} missing scans for event [{$event->name}].",
+            'ip_address'  => request()->ip(),
+        ]);
+
+        return response()->json(['message' => "Successfully added {$added} scan records.", 'added' => $added]);
     }
 }

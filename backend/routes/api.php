@@ -59,6 +59,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/pre-print-history', [PrePrintHistoryController::class, 'store']);
     Route::apiResource('events', EventController::class)->only(['index', 'show']);
     Route::get('/events/{event}/insights', [EventController::class, 'insights']);
+    Route::get('/events/{event}/missing-scans', [EventController::class, 'getMissingScans']);
+    Route::post('/events/{event}/fix-missing-scans', [EventController::class, 'fixMissingScans']);
     Route::post('/sync/pulse', [SyncController::class, 'pulse']);
     Route::post('/events/{event}/sync', [SyncController::class, 'sync']);
     Route::get('/events/{event}/sync-logs', [SyncController::class, 'index']);
@@ -102,6 +104,9 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/{visitor}/increment-print', [VisitorController::class, 'incrementPrintCount']);
         });
     });
+    
+    Route::get('/visitors/search', [VisitorController::class, 'globalSearch']);
+
 
     // --- Media Agent routes ---
     Route::prefix('events/{event}/media-agents')->group(function () {

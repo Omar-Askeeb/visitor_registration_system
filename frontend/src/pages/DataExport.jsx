@@ -37,6 +37,7 @@ const SCAN_COLUMNS = [
   { id: 'barcode', label: 'Barcode' },
   { id: 'timestamp', label: 'Timestamp' },
   { id: 'gate_details', label: 'Gate' },
+  { id: 'flag', label: 'Flag' },
 ];
 
 const EXPORT_TYPES = [

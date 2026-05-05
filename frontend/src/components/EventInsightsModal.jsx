@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Users, 
@@ -13,8 +13,11 @@ import {
   MapPin,
   MonitorSmartphone,
   Wifi,
-  ShieldCheck
+  ShieldCheck,
+  AlertCircle
 } from 'lucide-react';
+
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 const SourceBadge = ({ label, count, icon: Icon, colorClass, bgClass, borderClass }) => (
   <div className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${bgClass} ${borderClass}`}>
@@ -28,10 +31,45 @@ const SourceBadge = ({ label, count, icon: Icon, colorClass, bgClass, borderClas
 
 const EventInsightsModal = ({ event, onClose, onRefresh }) => {
   const [cleaningDate, setCleaningDate] = useState(null);
+  const [missingScans, setMissingScans] = useState(null); // null = not loaded, [] = none, [...] = list
+  const [loadingMissing, setLoadingMissing] = useState(false);
+  const [fixingMissing, setFixingMissing] = useState(false);
+  const [fixFlag, setFixFlag] = useState('');
+  const [realMissingCount, setRealMissingCount] = useState(null);
+  const [fullEvent, setFullEvent] = useState(event);
+  const [fetchingFull, setFetchingFull] = useState(!event.daily_stats);
 
-  if (!event) return null;
+  useEffect(() => {
+    if (!event.daily_stats && event.id) {
+      setFetchingFull(true);
+      fetch(`${API_BASE}/events/${event.id}/insights`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Accept': 'application/json' }
+      })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) setFullEvent(data);
+      })
+      .finally(() => setFetchingFull(false));
+    } else {
+      setFullEvent(event);
+      setFetchingFull(false);
+    }
+  }, [event.id, event.daily_stats]);
 
-  if (event.loading) {
+  const displayEvent = fullEvent || event;
+
+  useEffect(() => {
+    if (displayEvent?.id) {
+       fetch(`${API_BASE}/events/${displayEvent.id}/missing-scans`, {
+         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Accept': 'application/json' }
+       })
+       .then(r => r.ok ? r.json() : [])
+       .then(d => setRealMissingCount(d.length))
+       .catch(() => setRealMissingCount(0));
+    }
+  }, [displayEvent?.id]);
+
+  if (!fullEvent || fetchingFull || event.loading) {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={onClose} />
@@ -46,17 +84,17 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
     );
   }
 
-  const attendanceRate = Math.round(((event.total_attendance || 0) / (event.registered_count || 1)) * 100);
-  const targetRate    = Math.round(((event.registered_count || 0) / (event.target_visitors || 1)) * 100);
+  const attendanceRate = Math.round(((displayEvent.total_attendance || 0) / (displayEvent.registered_count || 1)) * 100);
+  const targetRate    = Math.round(((displayEvent.registered_count || 0) / (displayEvent.target_visitors || 1)) * 100);
 
-  const onlineAttended   = event.online_attended    ?? 0;
-  const onsiteCount      = event.onsite_count       ?? 0;
-  const selfServiceCount = event.self_service_count ?? 0;
+  const onlineAttended   = displayEvent.online_attended    ?? 0;
+  const onsiteCount      = displayEvent.onsite_count       ?? 0;
+  const selfServiceCount = displayEvent.self_service_count ?? 0;
 
   const handleCleanDay = async (scanDate) => {
     try {
       setCleaningDate(scanDate);
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/events/${event.id}/clean-scans-day`, {
+      const res = await fetch(`${API_BASE}/events/${displayEvent.id}/clean-scans-day`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -70,6 +108,52 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
       console.error(e);
     } finally {
       setCleaningDate(null);
+    }
+  };
+
+  const loadMissingScans = async () => {
+    setLoadingMissing(true);
+    try {
+      const res = await fetch(`${API_BASE}/events/${displayEvent.id}/missing-scans`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Accept': 'application/json'
+        }
+      });
+      const data = await res.json();
+      setMissingScans(data);
+    } catch (e) {
+      console.error(e);
+      setMissingScans([]);
+    } finally {
+      setLoadingMissing(false);
+    }
+  };
+
+  const handleFixMissing = async () => {
+    if (!missingScans || missingScans.length === 0) return;
+    setFixingMissing(true);
+    try {
+      const res = await fetch(`${API_BASE}/events/${displayEvent.id}/fix-missing-scans`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ 
+          visitor_ids: missingScans.map(v => v.id),
+          flag: fixFlag
+        })
+      });
+      if (res.ok) {
+        setMissingScans([]);
+        if (onRefresh) await onRefresh();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setFixingMissing(false);
     }
   };
 
@@ -106,18 +190,18 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
             </div>
             <div className="flex flex-col md:flex-row items-center gap-6 relative">
               <div className="h-16 w-16 rounded-2xl bg-gradient-to-tr from-cyan-600 to-blue-700 flex items-center justify-center text-white text-2xl font-black shadow-xl shadow-cyan-500/20 shrink-0">
-                {event.name[0]}
+                {displayEvent.name?.[0] || '?'}
               </div>
               <div className="flex-1 text-center md:text-left">
-                <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2 uppercase tracking-tight">{event.name}</h3>
+                <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2 uppercase tracking-tight">{displayEvent.name}</h3>
                 <div className="flex flex-wrap justify-center md:justify-start gap-3">
                   <div className="flex items-center space-x-2 text-[10px] font-black text-slate-500 uppercase tracking-widest bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                     <CalendarDays className="h-3 w-3 text-cyan-500" />
-                    <span>{new Date(event.start_date).toLocaleDateString()} — {new Date(event.end_date).toLocaleDateString()}</span>
+                    <span>{new Date(displayEvent.start_date).toLocaleDateString()} — {new Date(displayEvent.end_date).toLocaleDateString()}</span>
                   </div>
                   <div className="flex items-center space-x-2 text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest bg-emerald-500/5 px-3 py-1.5 rounded-xl border border-emerald-500/10 shadow-sm">
                     <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
-                    <span>{event.status}</span>
+                    <span>{displayEvent.status}</span>
                   </div>
                 </div>
               </div>
@@ -134,7 +218,7 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
               <div className="grid grid-cols-3 gap-4">
                 <div className="p-5 bg-slate-50 dark:bg-slate-800/20 rounded-2xl border border-slate-100 dark:border-slate-800/30">
                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Registered Visitors</div>
-                  <div className="text-3xl font-black text-slate-900 dark:text-white mb-2 italic tabular-nums">{(event.registered_count || 0).toLocaleString()}</div>
+                  <div className="text-3xl font-black text-slate-900 dark:text-white mb-2 italic tabular-nums">{(displayEvent.registered_count || 0).toLocaleString()}</div>
                   <div className="flex items-center gap-2">
                     <div className="h-1.5 flex-1 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                       <div className="h-full bg-cyan-500" style={{ width: `${targetRate}%` }} />
@@ -145,18 +229,18 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
 
                 <div className="p-5 bg-slate-50 dark:bg-slate-800/20 rounded-2xl border border-slate-100 dark:border-slate-800/30">
                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Unique Attendees</div>
-                  <div className="text-3xl font-black text-slate-900 dark:text-white mb-2 italic tabular-nums">{(event.unique_visitors_count || 0).toLocaleString()}</div>
+                  <div className="text-3xl font-black text-slate-900 dark:text-white mb-2 italic tabular-nums">{(displayEvent.unique_visitors_count || 0).toLocaleString()}</div>
                   <div className="flex items-center gap-2">
                     <div className="h-1.5 flex-1 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-indigo-500" style={{ width: `${Math.round(((event.unique_visitors_count || 0) / (event.registered_count || 1)) * 100)}%` }} />
+                      <div className="h-full bg-indigo-500" style={{ width: `${Math.round(((displayEvent.unique_visitors_count || 0) / (displayEvent.registered_count || 1)) * 100)}%` }} />
                     </div>
-                    <span className="text-[9px] font-black text-indigo-500">{Math.round(((event.unique_visitors_count || 0) / (event.registered_count || 1)) * 100)}% Conversion</span>
+                    <span className="text-[9px] font-black text-indigo-500">{Math.round(((displayEvent.unique_visitors_count || 0) / (displayEvent.registered_count || 1)) * 100)}% Conversion</span>
                   </div>
                 </div>
 
                 <div className="p-5 bg-slate-50 dark:bg-slate-800/20 rounded-2xl border border-slate-100 dark:border-slate-800/30">
                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Visits (Scans)</div>
-                  <div className="text-3xl font-black text-slate-900 dark:text-white mb-2 italic tabular-nums">{(event.total_attendance || 0).toLocaleString()}</div>
+                  <div className="text-3xl font-black text-slate-900 dark:text-white mb-2 italic tabular-nums">{(displayEvent.total_attendance || 0).toLocaleString()}</div>
                   <div className="flex items-center gap-2">
                     <div className="h-1.5 flex-1 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                       <div className="h-full bg-emerald-500" style={{ width: `${attendanceRate}%` }} />
@@ -171,8 +255,8 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
                 <h4 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.3em]">Visit Frequency Breakdown</h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {[1, 2, 3, 4].map((num) => {
-                    const count = event.visit_frequency?.[num] || 0;
-                    const totalUniques = event.total_attendance || 1;
+                    const count = displayEvent.visit_frequency?.[num] || 0;
+                    const totalUniques = displayEvent.total_attendance || 1;
                     const percent = Math.round((count / totalUniques) * 100);
                     const label = num === 4 ? '4+ Day Visits' : `${num} Day Visit${num > 1 ? 's' : ''}`;
                     const color = num === 1 ? 'text-cyan-400' : num === 2 ? 'text-amber-400' : num === 3 ? 'text-orange-400' : 'text-rose-400';
@@ -211,13 +295,13 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
                   <div className="text-right">
                     <div className="text-3xl font-black text-blue-400 italic tabular-nums">{onlineAttended.toLocaleString()}</div>
                     <div className="text-[9px] font-black text-slate-500 uppercase">
-                      {Math.round((onlineAttended / (event.registered_count || 1)) * 100)}% of total
+                      {Math.round((onlineAttended / (displayEvent.registered_count || 1)) * 100)}% of total
                     </div>
                   </div>
                 </div>
                 <div className="mt-3 h-1.5 w-full bg-blue-500/10 rounded-full overflow-hidden">
                   <div className="h-full bg-blue-500 rounded-full transition-all duration-1000"
-                    style={{ width: `${Math.min((onlineAttended / (event.registered_count || 1)) * 100, 100)}%` }} />
+                    style={{ width: `${Math.min((onlineAttended / (displayEvent.registered_count || 1)) * 100, 100)}%` }} />
                 </div>
               </div>
 
@@ -237,13 +321,13 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
                   <div className="text-right">
                     <div className="text-3xl font-black text-emerald-400 italic tabular-nums">{onsiteCount.toLocaleString()}</div>
                     <div className="text-[9px] font-black text-slate-500 uppercase">
-                      {Math.round((onsiteCount / (event.registered_count || 1)) * 100)}% of total
+                      {Math.round((onsiteCount / (displayEvent.registered_count || 1)) * 100)}% of total
                     </div>
                   </div>
                 </div>
                 <div className="mt-3 h-1.5 w-full bg-emerald-500/10 rounded-full overflow-hidden">
                   <div className="h-full bg-emerald-500 rounded-full transition-all duration-1000"
-                    style={{ width: `${Math.min((onsiteCount / (event.registered_count || 1)) * 100, 100)}%` }} />
+                    style={{ width: `${Math.min((onsiteCount / (displayEvent.registered_count || 1)) * 100, 100)}%` }} />
                 </div>
               </div>
 
@@ -263,13 +347,13 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
                   <div className="text-right">
                     <div className="text-3xl font-black text-purple-400 italic tabular-nums">{selfServiceCount.toLocaleString()}</div>
                     <div className="text-[9px] font-black text-slate-500 uppercase">
-                      {Math.round((selfServiceCount / (event.registered_count || 1)) * 100)}% of total
+                      {Math.round((selfServiceCount / (displayEvent.registered_count || 1)) * 100)}% of total
                     </div>
                   </div>
                 </div>
                 <div className="mt-3 h-1.5 w-full bg-purple-500/10 rounded-full overflow-hidden">
                   <div className="h-full bg-purple-500 rounded-full transition-all duration-1000"
-                    style={{ width: `${Math.min((selfServiceCount / (event.registered_count || 1)) * 100, 100)}%` }} />
+                    style={{ width: `${Math.min((selfServiceCount / (displayEvent.registered_count || 1)) * 100, 100)}%` }} />
                 </div>
               </div>
 
@@ -287,7 +371,7 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-3xl font-black text-cyan-400 italic tabular-nums">{(event.kiosk_print_count || 0).toLocaleString()}</div>
+                    <div className="text-3xl font-black text-cyan-400 italic tabular-nums">{(displayEvent.kiosk_print_count || 0).toLocaleString()}</div>
                     <div className="text-[9px] font-black text-slate-500 uppercase tracking-tight">
                        Source: System Role ID 4
                     </div>
@@ -305,7 +389,7 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
             </h4>
 
             {/* Column headers */}
-            {event.daily_stats?.length > 0 && (
+            {displayEvent.daily_stats?.length > 0 && (
               <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] items-center gap-x-4 px-4 mb-2">
                 <div className="w-10" />
                 <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Date</div>
@@ -318,12 +402,12 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
             )}
 
             <div className="space-y-2">
-              {event.daily_stats?.length === 0 ? (
+              {displayEvent.daily_stats?.length === 0 ? (
                 <div className="py-20 text-center text-slate-400 text-xs font-black uppercase tracking-widest border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
                   No Scan Data Detected
                 </div>
               ) : (
-                event.daily_stats.map((day, i) => {
+                displayEvent.daily_stats.map((day, i) => {
                   const hasDuplicates   = day.raw_count > day.unique_count;
                   const duplicatesCount = day.raw_count - day.unique_count;
                   const isCleaningThis  = cleaningDate === day.scan_date;
@@ -420,45 +504,151 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
               )}
               
               {/* Table Footer / Totals Row */}
-              {event.daily_stats?.length > 0 && (
-                <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] items-center gap-x-4 p-4 mt-4 bg-slate-900 text-white rounded-2xl border border-slate-800 shadow-2xl">
-                  <div className="h-9 w-9 flex items-center justify-center rounded-xl text-xs font-black bg-white/10 text-white">
-                    Σ
-                  </div>
-                  <div>
-                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Summary</div>
-                    <div className="text-sm font-black uppercase text-white">Event Totals</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[8px] font-black text-cyan-400 uppercase tracking-widest mb-0.5">Total Scans</div>
-                    <div className="text-lg font-black text-cyan-400 tabular-nums italic">
-                      {event.daily_stats.reduce((acc, d) => Number(acc) + Number(d.unique_count || 0), 0).toLocaleString()}
+              {displayEvent.daily_stats?.length > 0 && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] items-center gap-x-4 p-4 mt-4 bg-slate-900 text-white rounded-2xl border border-slate-800 shadow-2xl">
+                    <div className="h-9 w-9 flex items-center justify-center rounded-xl text-xs font-black bg-white/10 text-white">
+                      Σ
+                    </div>
+                    <div>
+                      <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Summary</div>
+                      <div className="text-sm font-black uppercase text-white">Event Totals</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[8px] font-black text-cyan-400 uppercase tracking-widest mb-0.5">Total Scans</div>
+                      <div className="text-lg font-black text-cyan-400 tabular-nums italic">
+                        {(displayEvent.daily_stats || []).reduce((acc, d) => Number(acc) + Number(d.unique_count || 0), 0).toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-0.5">Total Online</div>
+                      <div className="text-lg font-black text-blue-400 tabular-nums italic">
+                        {(displayEvent.daily_stats || []).reduce((acc, d) => Number(acc) + Number(d.online_attended || 0), 0).toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-0.5">Total Onsite</div>
+                      <div className="text-lg font-black text-emerald-400 tabular-nums italic">
+                        {(displayEvent.daily_stats || []).reduce((acc, d) => Number(acc) + Number(d.onsite_count || 0), 0).toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="text-right min-w-[70px]">
+                      <div className="text-[8px] font-black text-purple-400 uppercase tracking-widest mb-0.5">Total Self</div>
+                      <div className="text-lg font-black text-purple-400 tabular-nums italic">
+                        {(displayEvent.daily_stats || []).reduce((acc, d) => Number(acc) + Number(d.self_service_count || 0), 0).toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="text-right min-w-[70px]">
+                      <div className="text-[8px] font-black text-white uppercase tracking-widest mb-0.5">Grand Total</div>
+                      <div className="text-lg font-black text-white tabular-nums italic">
+                        {(displayEvent.daily_stats || []).reduce((acc, d) => Number(acc) + Number(d.online_attended || 0) + Number(d.onsite_count || 0) + Number(d.self_service_count || 0), 0).toLocaleString()}
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-[8px] font-black text-blue-400 uppercase tracking-widest mb-0.5">Total Online</div>
-                    <div className="text-lg font-black text-blue-400 tabular-nums italic">
-                      {event.daily_stats.reduce((acc, d) => Number(acc) + Number(d.online_attended || 0), 0).toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[8px] font-black text-emerald-400 uppercase tracking-widest mb-0.5">Total Onsite</div>
-                    <div className="text-lg font-black text-emerald-400 tabular-nums italic">
-                      {event.daily_stats.reduce((acc, d) => Number(acc) + Number(d.onsite_count || 0), 0).toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="text-right min-w-[70px]">
-                    <div className="text-[8px] font-black text-purple-400 uppercase tracking-widest mb-0.5">Total Self</div>
-                    <div className="text-lg font-black text-purple-400 tabular-nums italic">
-                      {event.daily_stats.reduce((acc, d) => Number(acc) + Number(d.self_service_count || 0), 0).toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="text-right min-w-[70px]">
-                    <div className="text-[8px] font-black text-white uppercase tracking-widest mb-0.5">Grand Total</div>
-                    <div className="text-lg font-black text-white tabular-nums italic">
-                      {event.daily_stats.reduce((acc, d) => acc + Number(d.online_attended || 0) + Number(d.onsite_count || 0) + Number(d.self_service_count || 0), 0).toLocaleString()}
-                    </div>
-                  </div>
+
+                  {/* Data Integrity Warning & Fix */}
+                  {(() => {
+                    const diff = realMissingCount ?? 0;
+
+                    if (diff > 0 || missingScans?.length > 0) {
+                      return (
+                        <div className="p-6 bg-amber-500/10 border border-amber-500/20 rounded-[28px] flex flex-col md:flex-row items-center justify-between gap-4">
+                           <div className="flex items-center gap-4">
+                              <div className="h-12 w-12 rounded-2xl bg-amber-500/20 flex items-center justify-center text-amber-500">
+                                 <AlertCircle className="h-6 w-6" />
+                              </div>
+                              <div>
+                                 <h5 className="text-sm font-black text-amber-500 uppercase tracking-tight">Data Integrity Warning</h5>
+                                 <p className="text-[10px] text-slate-500 font-medium">Found {diff} records that were printed/registered but never scanned at gates.</p>
+                              </div>
+                           </div>
+                           
+                           <div className="flex items-center gap-2">
+                              {!missingScans && (
+                                <button 
+                                  onClick={loadMissingScans}
+                                  disabled={loadingMissing}
+                                  className="px-6 py-3 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 transition-all flex items-center gap-2"
+                                >
+                                  {loadingMissing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <TrendingUp className="h-3.5 w-3.5" />}
+                                  Analyze Discrepancy
+                                </button>
+                              )}
+
+                              {missingScans && missingScans.length > 0 && (
+                                <div className="flex flex-col gap-2 w-full md:w-auto">
+                                   <div className="max-h-60 overflow-y-auto bg-white dark:bg-slate-950/40 rounded-xl border border-amber-500/20 overflow-hidden mb-2">
+                                      <table className="w-full text-left text-[9px] font-mono">
+                                         <thead className="bg-amber-500/10 text-amber-600 dark:text-amber-500">
+                                            <tr>
+                                               <th className="px-3 py-2 uppercase tracking-widest font-black">Visitor</th>
+                                               <th className="px-3 py-2 uppercase tracking-widest font-black">Badge ID</th>
+                                               <th className="px-3 py-2 uppercase tracking-widest font-black">Target Flag</th>
+                                            </tr>
+                                         </thead>
+                                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                            {missingScans.map(v => (
+                                              <tr key={v.id} className="hover:bg-amber-500/5 transition-colors">
+                                                 <td className="px-3 py-2 text-slate-600 dark:text-slate-400 font-bold">{v.visitorName} {v.surName}</td>
+                                                 <td className="px-3 py-2 text-amber-500 font-black">{v.badgeID}</td>
+                                                 <td className="px-3 py-2">
+                                                    <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded border border-slate-200 dark:border-slate-700">
+                                                       {fixFlag || 'None'}
+                                                    </span>
+                                                 </td>
+                                              </tr>
+                                            ))}
+                                         </tbody>
+                                      </table>
+                                   </div>
+                                   
+                                   <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-4 mb-2">
+                                      <div className="flex items-center justify-between mb-3">
+                                         <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Specify Scan Flag</span>
+                                         <div className="flex gap-2">
+                                            {['System', 'Recovered', 'Manual'].map(tag => (
+                                               <button 
+                                                  key={tag}
+                                                  onClick={() => setFixFlag(tag)}
+                                                  className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter transition-all ${fixFlag === tag ? 'bg-amber-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-400 hover:text-amber-500 border border-slate-200 dark:border-slate-700'}`}
+                                               >
+                                                  {tag}
+                                               </button>
+                                            ))}
+                                         </div>
+                                      </div>
+                                      <div className="relative">
+                                        <input 
+                                          type="text"
+                                          placeholder="Type custom tag or choose above..."
+                                          value={fixFlag}
+                                          onChange={(e) => setFixFlag(e.target.value)}
+                                          className="w-full bg-white dark:bg-slate-900 border border-amber-500/20 rounded-xl px-4 py-3 text-[10px] font-bold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500/50 transition-all"
+                                        />
+                                      </div>
+                                   </div>
+                                   <button 
+                                      onClick={handleFixMissing}
+                                      disabled={fixingMissing}
+                                      className="px-6 py-4 bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-emerald-600 transition-all flex items-center gap-2 justify-center shadow-lg shadow-emerald-500/20 group"
+                                   >
+                                      {fixingMissing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-4 w-4 group-hover:scale-110 transition-transform" />}
+                                      Finalize & Recover {missingScans.length} Scans
+                                   </button>
+                                </div>
+                              )}
+
+                              {missingScans && missingScans.length === 0 && (
+                                <div className="text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-2">
+                                   <ShieldCheck className="h-4 w-4" /> All Clear!
+                                </div>
+                              )}
+                           </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
               )}
             </div>

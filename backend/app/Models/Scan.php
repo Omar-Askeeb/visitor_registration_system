@@ -13,6 +13,7 @@ class Scan extends Model
         'gate_details',
         'user_data',
         'event_id',
+        'flag',
     ];
 
     protected $casts = [
