@@ -21,10 +21,12 @@ import {
   Timer,
   UploadCloud,
   ArrowRight,
+  TrendingUp,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import CustomSelect from '../components/CustomSelect';
+import EventInsightsModal from '../components/EventInsightsModal';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
@@ -250,6 +252,26 @@ const EventModal = ({ event, onClose, onSave }) => {
     }));
   }, []);
 
+  const handleSkipSync = async () => {
+    if (!event?.id) return;
+    if (!window.confirm('Are you sure you want to mark all remaining unsynced records as skipped? This cannot be undone.')) return;
+    
+    try {
+      setSaving(true);
+      const res = await fetch(`${API_BASE}/events/${event.id}/visitors/skip-external`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) throw new Error('Failed to skip sync');
+      const data = await res.json();
+      alert(data.message);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -473,6 +495,23 @@ const EventModal = ({ event, onClose, onSave }) => {
                 hint="API endpoint to send on-site registrations to."
                 value={form.sync_push_url || ''} onChange={handle}
               />
+              
+              {isEdit && (
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={handleSkipSync}
+                    disabled={saving}
+                    className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 font-black text-[10px] uppercase tracking-widest hover:bg-amber-500/20 transition-all disabled:opacity-50"
+                  >
+                    <RefreshCcw className="h-3.5 w-3.5" />
+                    <span>Mark Remaining as Skipped</span>
+                  </button>
+                  <p className="mt-1.5 text-[9px] text-slate-400 dark:text-slate-500 leading-relaxed italic">
+                    Prevents records from being pushed to the external CRM. Useful if you want to stop syncing for this event.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -607,7 +646,7 @@ const DeleteModal = ({ event, onClose, onDelete }) => {
 /* ═══════════════════════════════════════════════════════════════════════════
    EventCard
 ═══════════════════════════════════════════════════════════════════════════ */
-const EventCard = ({ event, onEdit, onDelete, isReadOnly, onNotify }) => {
+const EventCard = ({ event, onEdit, onDelete, onInsights, isReadOnly, onNotify }) => {
   const progress = event.target_visitors > 0
     ? Math.min((event.visitors_count / event.target_visitors) * 100, 100)
     : 0;
@@ -784,10 +823,11 @@ const EventCard = ({ event, onEdit, onDelete, isReadOnly, onNotify }) => {
           )}
 
           <button
-            onClick={() => onDelete(event)}
-            className="flex items-center justify-center px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-red-500 hover:border-red-500/30 hover:bg-red-500/5 transition-all"
+            onClick={() => onInsights(event)}
+            className="flex items-center justify-center px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-emerald-500 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all"
+            title="Detailed Insights"
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <TrendingUp className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
@@ -808,6 +848,7 @@ const EventManagement = () => {
   const [modalEvent, setModalEvent]     = useState(null);
   const [modalOpen, setModalOpen]       = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [insightsEvent, setInsightsEvent] = useState(null);
   const [notification, setNotification] = useState(null);
 
   const notify = (msg, type = 'success') => {
@@ -835,6 +876,24 @@ const EventManagement = () => {
   const closeModal  = () => { setModalOpen(false); setModalEvent(null); };
   const openDelete  = (ev) => setDeleteTarget(ev);
   const closeDelete = () => setDeleteTarget(null);
+  const openInsights = async (ev) => {
+    try {
+      // Show basic data first to open the modal immediately if possible
+      // or we can set a loading state
+      setInsightsEvent({ ...ev, loading: true });
+      const res = await fetch(`${API_BASE}/events/${ev.id}/insights`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) throw new Error('Failed to fetch insights');
+      const data = await res.json();
+      setInsightsEvent(data);
+    } catch (err) {
+      console.error(err);
+      notify('Failed to load detailed statistics.', 'error');
+      setInsightsEvent(ev);
+    }
+  };
+  const closeInsights = () => setInsightsEvent(null);
 
   const handleSave = (saved, isEdit) => {
     setEvents((prev) => isEdit ? prev.map((e) => e.id === saved.id ? saved : e) : [saved, ...prev]);
@@ -945,6 +1004,7 @@ const EventManagement = () => {
               isReadOnly={isReadOnly}
               onEdit={openEdit}
               onDelete={openDelete}
+              onInsights={openInsights}
               onNotify={notify}
             />
           ))}
@@ -957,6 +1017,13 @@ const EventManagement = () => {
       )}
       {deleteTarget && (
         <DeleteModal event={deleteTarget} onClose={closeDelete} onDelete={handleDelete} />
+      )}
+      {insightsEvent && (
+        <EventInsightsModal 
+          event={insightsEvent} 
+          onClose={closeInsights} 
+          onRefresh={fetchEvents}
+        />
       )}
     </div>
   );

@@ -9,6 +9,7 @@ import {
   Moon,
   Zap,
   BarChart3,
+  Target,
   X,
   CalendarRange,
   ChevronLeft,
@@ -54,6 +55,7 @@ const Sidebar = ({ isOpen, onClose }) => {
       ]
     },
     { icon: Users,           label: 'Personnel',     path: '/users',     color: 'blue',   perm: 'manage_users' },
+    { icon: Target,          label: 'Training Results', path: '/training-results', color: 'pink', perm: 'audit_records' },
     { icon: RefreshCcw,      label: 'Sync Records',  path: '/sync',      color: 'amber',   perm: 'sync_records' },
     { icon: Download,        label: 'Data Export',   path: '/export',    color: 'emerald', perm: 'manage_settings' },
     { icon: ShieldCheck,     label: 'Activity Logs', path: '/logs',      color: 'violet', perm: 'view_logs' },

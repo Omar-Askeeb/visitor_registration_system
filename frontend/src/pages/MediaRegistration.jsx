@@ -31,7 +31,7 @@ const EventSelector = ({ onSelect }) => {
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) {
-          setEvents(data.filter(e => e.status === 'active'));
+          setEvents(data.filter(e => e.status === 'active' || e.status === 'upcoming'));
         } else {
           setEvents([]);
         }
@@ -57,13 +57,13 @@ const EventSelector = ({ onSelect }) => {
         <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight italic">
           Select <span className="bg-gradient-to-r from-cyan-500 to-blue-600 bg-clip-text text-transparent not-italic">Event</span>
         </h1>
-        <p className="mt-2 text-slate-500 text-sm font-medium">Select an active event to register media agents.</p>
+        <p className="mt-2 text-slate-500 text-sm font-medium">Select an upcoming or active event to register media agents.</p>
       </div>
 
       {events.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-32 space-y-4">
           <CalendarDays className="h-12 w-12 text-slate-300 dark:text-slate-700" />
-          <p className="text-slate-400 font-bold">No active events found.</p>
+          <p className="text-slate-400 font-bold">No active or upcoming events found.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -78,8 +78,12 @@ const EventSelector = ({ onSelect }) => {
                 <div className="h-12 w-12 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-cyan-500/30 shrink-0">
                   <CalendarDays className="h-6 w-6 text-white" />
                 </div>
-                <span className="text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-full">
-                  Active
+                <span className={`text-[9px] font-black uppercase tracking-widest border px-3 py-1 rounded-full ${
+                  ev.status === 'active'
+                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                    : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
+                }`}>
+                  {ev.status === 'active' ? 'Active' : 'Upcoming'}
                 </span>
               </div>
               <h3 className="font-black text-slate-900 dark:text-white text-lg mb-1">{ev.name}</h3>
@@ -313,13 +317,21 @@ const RegistrationForm = ({ event, onBack, countryOptions = [] }) => {
   };
 
   const handleSelectAgent = (agent) => {
-     setSelectedAgent(agent);
+     // If agent belongs to current event, set selectedAgent to enable UPDATE
+     // If not, clear selectedAgent (set to null) so saving creates a NEW record for this event
+     if (agent.event_id === event.id) {
+        setSelectedAgent(agent);
+        notify('تم تحميل بيانات الإعلامي (للتعديل)');
+     } else {
+        setSelectedAgent(null);
+        notify('تم تحميل بيانات الإعلامي (للتسجيل في هذا الحدث)');
+     }
+
      setForm({
         ...EMPTY_FORM,
         ...agent,
         has_whatsapp: agent.has_whatsapp === 1 || agent.has_whatsapp === true
      });
-     notify('تم تحميل بيانات الإعلامي');
   };
 
   const handlePrintOnly = async (agent) => {
@@ -460,7 +472,9 @@ const RegistrationForm = ({ event, onBack, countryOptions = [] }) => {
           </button>
           <div className="bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl p-3">
             <div className="flex items-center justify-between mb-0.5">
-              <div className="text-[9px] text-cyan-100 font-black uppercase tracking-widest">Active Event</div>
+              <div className="text-[9px] text-cyan-100 font-black uppercase tracking-widest">
+                {event.status === 'active' ? 'Active Event' : 'Upcoming Event'}
+              </div>
               <RefreshCw className="h-3 w-3 text-cyan-100/50" />
             </div>
             <div className="text-white font-black text-sm leading-tight">{event.name}</div>
@@ -514,7 +528,14 @@ const RegistrationForm = ({ event, onBack, countryOptions = [] }) => {
               className="w-full p-4 border-b border-slate-100 dark:border-slate-800/50 hover:bg-cyan-500/5 transition-colors group relative text-right"
             >
               <div className="font-bold text-slate-900 dark:text-white text-xs">{a.first_name} {a.last_name}</div>
-              <div className="text-[10px] text-slate-500">{a.organisation}</div>
+              <div className="flex items-center justify-between mt-1">
+                <div className="text-[10px] text-slate-500">{a.organisation}</div>
+                {a.event_id !== event.id && (
+                  <span className="text-[8px] font-black text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                    {a.event?.name || 'حدث آخر'}
+                  </span>
+                )}
+              </div>
               <div className="text-[10px] text-slate-400 mt-1">{a.phone1}</div>
               <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all duration-300">
                  <CheckCircle2 className="h-4 w-4 text-cyan-500" />

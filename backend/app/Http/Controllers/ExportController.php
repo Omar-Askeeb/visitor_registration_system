@@ -44,10 +44,10 @@ class ExportController extends Controller
         }
 
         if ($format === 'sql') {
-            return $this->downloadSql($this->filterColumns($data, $columns), 'visitors');
+            return $this->downloadSql($this->filterColumns($data, $columns), 'visitors', $columns);
         }
 
-        return $this->downloadCsv($this->filterColumns($data, $columns), 'visitors_export_' . $type);
+        return $this->downloadCsv($this->filterColumns($data, $columns), 'visitors_export_' . $type, $columns);
     }
 
     public function exportScans(Request $request, Event $event)
@@ -62,10 +62,10 @@ class ExportController extends Controller
         }
 
         if ($format === 'sql') {
-            return $this->downloadSql($this->filterColumns($data, $columns), 'scans');
+            return $this->downloadSql($this->filterColumns($data, $columns), 'scans', $columns);
         }
 
-        return $this->downloadCsv($this->filterColumns($data, $columns), 'scans_export');
+        return $this->downloadCsv($this->filterColumns($data, $columns), 'scans_export', $columns);
     }
 
     private function filterColumns($collection, $columns)
@@ -86,54 +86,59 @@ class ExportController extends Controller
         })->toArray();
     }
 
-    private function downloadCsv($data, $filename)
+    private function downloadCsv($data, $filename, $columns = [])
     {
-        if (empty($data)) {
-            return response()->make("No data found.", 404);
-        }
-
         $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => "attachment; filename={$filename}.csv",
         ];
 
-        $callback = function() use ($data) {
+        $callback = function() use ($data, $columns) {
             $file = fopen('php://output', 'w');
             
             // Add UTF-8 BOM for Excel
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
 
-            // Header
-            fputcsv($file, array_keys($data[0]));
+            if (!empty($data)) {
+                // Header
+                fputcsv($file, array_keys($data[0]));
 
-            // Data
-            foreach ($data as $row) {
-                fputcsv($file, $row);
+                // Data
+                foreach ($data as $row) {
+                    fputcsv($file, $row);
+                }
+            } else if (!empty($columns)) {
+                // Just write the selected columns as header
+                fputcsv($file, $columns);
             }
+            
             fclose($file);
         };
 
         return Response::stream($callback, 200, $headers);
     }
 
-    private function downloadSql($data, $table)
+    private function downloadSql($data, $table, $columns = [])
     {
-        if (empty($data)) {
-            return response()->make("No data found.", 404);
-        }
-
         $filename = "{$table}_export_" . date('Y-m-d_H-i-s') . ".sql";
         
         $sql = "-- Exported at " . date('Y-m-d H:i:s') . "\n";
         
-        foreach ($data as $row) {
-            $keys = array_keys($row);
-            $values = array_map(function($val) {
-                if (is_null($val)) return 'NULL';
-                return "'" . addslashes((string)$val) . "'";
-            }, array_values($row));
-            
-            $sql .= "INSERT INTO `{$table}` (`" . implode("`, `", $keys) . "`) VALUES (" . implode(", ", $values) . ");\n";
+        if (empty($data)) {
+            $sql .= "-- No data found for the selected criteria.\n";
+            if (!empty($columns)) {
+                $sql .= "-- Selected columns: " . implode(', ', $columns) . "\n";
+            }
+        } else {
+            foreach ($data as $row) {
+                $keys = array_keys($row);
+                $values = array_map(function($val) {
+                    if (is_null($val)) return 'NULL';
+                    return "'" . addslashes((string)$val) . "'";
+                }, array_values($row));
+                
+                $sql .= "INSERT INTO `{$table}` (`" . implode("`, `", $keys) . "`) VALUES (" . implode(", ", $values) . ");\n";
+            }
         }
 
         return Response::make($sql, 200, [

@@ -53,4 +53,24 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Role::class);
     }
+
+    public function trainingRecords()
+    {
+        return $this->hasMany(\App\Models\TrainingRecord::class);
+    }
+
+    public function hasPermission(string $permission): bool
+    {
+        $role = $this->loadMissing('role')->role;
+        if (!$role) {
+            return false;
+        }
+
+        // Admin has all permissions bypass
+        if ($role->name === 'admin') {
+            return true;
+        }
+
+        return $role->permissions()->where('name', $permission)->exists();
+    }
 }

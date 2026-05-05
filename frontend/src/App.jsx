@@ -20,6 +20,7 @@ import PrePrintBadges from './pages/PrePrintBadges';
 import PrePrintForms from './pages/PrePrintForms';
 import MediaRegistration from './pages/MediaRegistration';
 import Profile from './pages/Profile';
+import TrainingResults from './pages/TrainingResults';
 
 
 function ProtectedRoute({ element, requiredPermission }) {
@@ -95,6 +96,7 @@ function App() {
             <Route path="/reviews" element={<ProtectedRoute element={<ReviewForms />} requiredPermission="review_queue" />} />
 
             <Route path="/audit-correction" element={<ProtectedRoute element={<AuditCorrection />} requiredPermission="audit_records" />} />
+            <Route path="/training-results" element={<ProtectedRoute element={<TrainingResults />} requiredPermission="audit_records" />} />
             <Route path="/profile" element={<ProtectedRoute element={<Profile />} />} />
           </Routes>
         </main>

@@ -24,12 +24,16 @@ class TrainingRecord extends Model
         'workfield',
         'howexpo',
         'fill_duration',
+        'is_audited',
+        'audit_changed',
     ];
 
     protected $casts = [
         'workfield' => 'array',
         'howexpo'   => 'array',
         'fill_duration' => 'float',
+        'is_audited' => 'boolean',
+        'audit_changed' => 'boolean',
     ];
 
     public function event()

@@ -1,10 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import StatsCard from '../components/StatsCard';
 import { 
-  History,
-  CheckCircle2,
-  Clock,
-  LayoutGrid,
   Loader2,
   TrendingUp,
   ShieldCheck,
@@ -19,7 +15,10 @@ import {
   Activity,
   ArrowUpRight,
   Mail,
-  AlertCircle
+  AlertCircle,
+  Globe,
+  MapPin,
+  MonitorSmartphone
 } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
@@ -39,12 +38,14 @@ const Dashboard = () => {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [insightsData, setInsightsData] = useState(null);
   const [statsEventId, setStatsEventId] = useState('all');
   const [performanceUserId, setPerformanceUserId] = useState(null);
 
-  const load = async () => {
+  const load = async (eventId = 'all') => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/dashboard`, {
+      const url = eventId !== 'all' ? `${import.meta.env.VITE_API_URL}/dashboard?event_id=${eventId}` : `${import.meta.env.VITE_API_URL}/dashboard`;
+      const res = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Accept': 'application/json'
@@ -62,19 +63,41 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    load();
-  }, []);
+    load(statsEventId);
+  }, [statsEventId]);
+
+  const openInsights = async (event) => {
+    try {
+      setInsightsData({ ...event, loading: true });
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/events/${event.id}/insights`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Accept': 'application/json',
+        },
+      });
+      if (!res.ok) throw new Error('Failed to fetch insights');
+      const data = await res.json();
+      setInsightsData(data);
+    } catch (err) {
+      console.error(err);
+      setInsightsData(event);
+    }
+  };
 
   const filteredEventsForStats = statsEventId === 'all' 
     ? data.events 
     : data.events.filter(e => e.id.toString() === statsEventId);
 
   const filteredTotals = {
-    registered_count: filteredEventsForStats.reduce((acc, ev) => acc + (ev.registered_count || 0), 0),
-    total_attendance: filteredEventsForStats.reduce((acc, ev) => acc + (ev.total_attendance || 0), 0),
-    redundant_visits: filteredEventsForStats.reduce((acc, ev) => acc + (ev.redundant_visits || 0), 0),
-    target_visitors: filteredEventsForStats.reduce((acc, ev) => acc + (ev.target_visitors || 0), 0),
-    emails_sent: filteredEventsForStats.reduce((acc, ev) => acc + (ev.emails_sent || 0), 0),
+    registered_count:   filteredEventsForStats.reduce((acc, ev) => Number(acc) + Number(ev.registered_count   || 0), 0),
+    total_attendance:   filteredEventsForStats.reduce((acc, ev) => Number(acc) + Number(ev.total_attendance   || 0), 0),
+    redundant_visits:   filteredEventsForStats.reduce((acc, ev) => Number(acc) + Number(ev.redundant_visits   || 0), 0),
+    target_visitors:    filteredEventsForStats.reduce((acc, ev) => Number(acc) + Number(ev.target_visitors    || 0), 0),
+    emails_sent:        filteredEventsForStats.reduce((acc, ev) => Number(acc) + Number(ev.emails_sent        || 0), 0),
+    online_attended:    filteredEventsForStats.reduce((acc, ev) => Number(acc) + Number(ev.online_attended    || 0), 0),
+    onsite_count:       filteredEventsForStats.reduce((acc, ev) => Number(acc) + Number(ev.onsite_count       || 0), 0),
+    self_service_count: filteredEventsForStats.reduce((acc, ev) => Number(acc) + Number(ev.self_service_count || 0), 0),
+    kiosk_print_count:  filteredEventsForStats.reduce((acc, ev) => Number(acc) + Number(ev.kiosk_print_count  || 0), 0),
   };
 
   const activeEvents = data.events.filter(e => e.status?.toLowerCase() !== 'completed' && e.status?.toLowerCase() !== 'archived');
@@ -103,7 +126,7 @@ const Dashboard = () => {
 
   const eventOptions = [
     { value: 'all', label: 'All Events Combined' },
-    ...data.events.map(ev => ({ value: ev.id.toString(), label: ev.name }))
+    ...(data.all_events || data.events).map(ev => ({ value: ev.id.toString(), label: ev.name }))
   ];
 
   return (
@@ -166,7 +189,7 @@ const Dashboard = () => {
               {activeEvents.map((event) => (
                 <div 
                   key={event.id} 
-                  onClick={() => setSelectedEvent(event)}
+                  onClick={() => openInsights(event)}
                   className="group p-6 bg-slate-50 dark:bg-slate-950/40 rounded-2xl border border-slate-100 dark:border-slate-800/50 hover:border-cyan-500/30 transition-all cursor-pointer"
                 >
                   <div className="flex items-center justify-between mb-4">
@@ -189,11 +212,27 @@ const Dashboard = () => {
                     </div>
                   </div>
 
-                  <div className="mt-4 flex items-end gap-1 h-12 mb-2">
+                  {/* Source Breakdown Pills */}
+                  <div className="flex items-center gap-2 mb-4 flex-wrap">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                      <Globe className="h-3 w-3 text-blue-400" />
+                      <span className="text-[9px] font-black text-blue-400 uppercase tracking-wider tabular-nums">{event.online_attended ?? 0} Online</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                      <MapPin className="h-3 w-3 text-emerald-400" />
+                      <span className="text-[9px] font-black text-emerald-400 uppercase tracking-wider tabular-nums">{event.onsite_count ?? 0} Onsite</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20">
+                      <MonitorSmartphone className="h-3 w-3 text-purple-400" />
+                      <span className="text-[9px] font-black text-purple-400 uppercase tracking-wider tabular-nums">{event.self_service_count ?? 0} Self-Svc</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 flex items-end gap-1 h-10 mb-2">
                     {event.daily_stats?.map((day, i) => (
                       <div 
                         key={i}
-                        title={`${day.scan_date}: ${day.unique_count} visits`}
+                        title={`${day.scan_date}: ${day.unique_count} scans | Online: ${day.online_attended ?? 0} | Onsite: ${day.onsite_count ?? 0} | Self: ${day.self_service_count ?? 0}`}
                         className="flex-1 bg-cyan-500/20 rounded-t-sm hover:bg-cyan-500/40 transition-all cursor-help"
                         style={{ height: `${Math.min((day.unique_count / (event.registered_count || 1)) * 100 + 10, 100)}%` }}
                       ></div>
@@ -214,29 +253,73 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* New Capture Stats Section */}
+          {/* Source Capture Stats Section */}
           <div className="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800/50 rounded-[32px] p-8 shadow-xl mt-8">
-            <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-8">إحصائيات التقاط البيانات (Capture Statistics)</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <h2 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight mb-6">Visitor Source Statistics</h2>
+            
+            {/* Global totals row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 p-4 bg-slate-50 dark:bg-slate-950/40 rounded-2xl border border-slate-100 dark:border-slate-800/50">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-blue-500/15 border border-blue-500/20 flex items-center justify-center shrink-0"><Globe className="h-4 w-4 text-blue-400" /></div>
+                <div>
+                  <div className="text-xl font-black text-blue-400 tabular-nums">{filteredTotals.online_attended}</div>
+                  <div className="text-[8px] font-black uppercase text-slate-500 tracking-widest">Online Attended</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 border-x border-slate-200 dark:border-slate-800 px-4">
+                <div className="h-9 w-9 rounded-xl bg-emerald-500/15 border border-emerald-500/20 flex items-center justify-center shrink-0"><MapPin className="h-4 w-4 text-emerald-400" /></div>
+                <div>
+                  <div className="text-xl font-black text-emerald-400 tabular-nums">{filteredTotals.onsite_count}</div>
+                  <div className="text-[8px] font-black uppercase text-slate-500 tracking-widest">Onsite Registered</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 px-4">
+                <div className="h-9 w-9 rounded-xl bg-purple-500/15 border border-purple-500/20 flex items-center justify-center shrink-0"><MonitorSmartphone className="h-4 w-4 text-purple-400" /></div>
+                <div>
+                  <div className="text-xl font-black text-purple-400 tabular-nums">{filteredTotals.self_service_count}</div>
+                  <div className="text-[8px] font-black uppercase text-slate-500 tracking-widest">Self-Service Kiosk</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 border-l border-slate-200 dark:border-slate-800 pl-4">
+                <div className="h-9 w-9 rounded-xl bg-cyan-500/15 border border-cyan-500/20 flex items-center justify-center shrink-0"><ShieldCheck className="h-4 w-4 text-cyan-400" /></div>
+                <div>
+                  <div className="text-xl font-black text-cyan-400 tabular-nums">{filteredTotals.kiosk_print_count}</div>
+                  <div className="text-[8px] font-black uppercase text-slate-500 tracking-widest">Kiosk Prints</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Per-event breakdown */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {activeEvents.map(ev => (
-                 <div key={ev.id} className="p-6 bg-slate-50 dark:bg-slate-900/60 rounded-[28px] border border-slate-100 dark:border-slate-800/50">
-                    <div className="flex items-center justify-between mb-4">
-                       <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{ev.name}</span>
-                       <Activity className="h-4 w-4 text-cyan-500" />
+                <div key={ev.id} className="p-5 bg-slate-50 dark:bg-slate-900/60 rounded-[24px] border border-slate-100 dark:border-slate-800/50">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 truncate pr-2">{ev.name}</span>
+                    <Activity className="h-4 w-4 text-cyan-500 shrink-0" />
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="p-3 bg-blue-500/5 border border-blue-500/15 rounded-xl text-center">
+                      <Globe className="h-3.5 w-3.5 text-blue-400 mx-auto mb-1" />
+                      <div className="text-lg font-black text-blue-400 tabular-nums">{ev.online_attended ?? 0}</div>
+                      <div className="text-[7px] font-black uppercase text-slate-500 tracking-widest">Online</div>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                       <div>
-                          <div className="text-2xl font-black text-slate-900 dark:text-white tabular-nums">{ev.synced_count || 0}</div>
-                          <div className="text-[8px] font-black uppercase text-slate-500 tracking-tighter">Total Captured Logs</div>
-                       </div>
-                       <div className="border-l border-slate-200 dark:border-slate-800 pl-4">
-                          <div className="text-2xl font-black text-emerald-500 tabular-nums">
-                            {ev.today_synced_count || 0}
-                          </div>
-                          <div className="text-[8px] font-black uppercase text-slate-500 tracking-tighter">Day Pulse (Live)</div>
-                       </div>
+                    <div className="p-3 bg-emerald-500/5 border border-emerald-500/15 rounded-xl text-center">
+                      <MapPin className="h-3.5 w-3.5 text-emerald-400 mx-auto mb-1" />
+                      <div className="text-lg font-black text-emerald-400 tabular-nums">{ev.onsite_count ?? 0}</div>
+                      <div className="text-[7px] font-black uppercase text-slate-500 tracking-widest">Onsite</div>
                     </div>
-                 </div>
+                    <div className="p-3 bg-purple-500/5 border border-purple-500/15 rounded-xl text-center">
+                      <MonitorSmartphone className="h-3.5 w-3.5 text-purple-400 mx-auto mb-1" />
+                      <div className="text-lg font-black text-purple-400 tabular-nums">{ev.self_service_count ?? 0}</div>
+                      <div className="text-[7px] font-black uppercase text-slate-500 tracking-widest">Self-Svc</div>
+                    </div>
+                    <div className="p-3 bg-cyan-500/5 border border-cyan-500/15 rounded-xl text-center">
+                      <ShieldCheck className="h-3.5 w-3.5 text-cyan-400 mx-auto mb-1" />
+                      <div className="text-lg font-black text-cyan-400 tabular-nums">{ev.kiosk_print_count ?? 0}</div>
+                      <div className="text-[7px] font-black uppercase text-slate-500 tracking-widest">Kiosk Prints</div>
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
@@ -343,10 +426,10 @@ const Dashboard = () => {
       </div>
 
       {/* Detail Analytics Modal */}
-      {selectedEvent && (
+      {insightsData && (
         <EventInsightsModal 
-          event={data.events.find(e => e.id === selectedEvent.id) || selectedEvent} 
-          onClose={() => setSelectedEvent(null)} 
+          event={insightsData} 
+          onClose={() => setInsightsData(null)} 
           onRefresh={load}
         />
       )}

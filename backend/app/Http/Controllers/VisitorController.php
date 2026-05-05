@@ -414,4 +414,34 @@ class VisitorController extends Controller
         
         return response()->json(['print_count' => $visitor->print_count]);
     }
+
+    /**
+     * Mark all pending/failed/new visitors as 'skipped' so they won't be pushed.
+     */
+    public function skipExternalSync(Event $event): JsonResponse
+    {
+        $count = $event->visitors()
+            ->whereIn('visitor_source', ['onsite', 'self-service'])
+            ->where(function ($q) {
+                $q->whereNull('external_sync_status')
+                  ->orWhere('external_sync_status', 'failed')
+                  ->orWhere('external_sync_status', 'pending');
+            })
+            ->update([
+                'external_sync_status' => 'skipped',
+                'external_sync_error'  => 'Marked as skipped by administrator.'
+            ]);
+
+        ActivityLog::create([
+            'user_id'     => auth()->id(),
+            'action'      => 'external_crm_skip',
+            'description' => "⏭️ Manual CRM Sync Skip for event [{$event->name}]: {$count} records marked as skipped.",
+            'ip_address'  => request()->ip(),
+        ]);
+
+        return response()->json([
+            'message' => "{$count} records marked as skipped.",
+            'count'   => $count,
+        ]);
+    }
 }

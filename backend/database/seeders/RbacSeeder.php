@@ -31,9 +31,9 @@ class RbacSeeder extends Seeder
             // Printing
             ['name' => 'print_badges', 'display_name' => 'Print Badges', 'group' => 'Printing'],
             
-            // Auditing & Review
-            ['name' => 'audit_records', 'display_name' => 'Audit Records', 'group' => 'Auditing'],
-            ['name' => 'review_queue', 'display_name' => 'Review Queue', 'group' => 'Auditing'],
+            // Auditing & Training
+            ['name' => 'audit_records', 'display_name' => 'Manage Training & Audits', 'group' => 'Auditing'],
+            ['name' => 'review_queue', 'display_name' => 'Review Correction Queue', 'group' => 'Auditing'],
             
             // Settings & Users
             ['name' => 'manage_users', 'display_name' => 'Manage Users', 'group' => 'System'],
@@ -43,7 +43,7 @@ class RbacSeeder extends Seeder
         ];
 
         foreach ($permissions as $perm) {
-            Permission::firstOrCreate(['name' => $perm['name']], $perm);
+            Permission::updateOrCreate(['name' => $perm['name']], $perm);
         }
 
         // 2. Create Roles

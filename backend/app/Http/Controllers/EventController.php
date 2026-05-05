@@ -344,4 +344,127 @@ class EventController extends Controller
 
         return response()->json(['message' => 'Duplicates cleaned successfully for ' . $scanDate]);
     }
+
+    /**
+     * Get detailed insights/statistics for a specific event.
+     */
+    public function insights(Event $event): JsonResponse
+    {
+        $event->loadCount('visitors');
+
+        // 1. Unique visitors per day based on Scans
+        $dailyStatsDB = $event->scans()
+            ->select(
+                \Illuminate\Support\Facades\DB::raw('DATE(timestamp) as scan_date'),
+                \Illuminate\Support\Facades\DB::raw('count(distinct barcode) as unique_count'),
+                \Illuminate\Support\Facades\DB::raw('count(*) as raw_count')
+            )
+            ->groupBy('scan_date')
+            ->orderBy('scan_date')
+            ->get()
+            ->keyBy('scan_date');
+
+        // 2. Source-based daily registration/attendance breakdown
+        $dailySourceBreakdown = $event->visitors()
+            ->select(
+                \Illuminate\Support\Facades\DB::raw("DATE(CASE WHEN visitor_source = 'online' THEN print_date ELSE created_at END) as activity_date"),
+                \Illuminate\Support\Facades\DB::raw("SUM(CASE WHEN visitor_source = 'online' AND print_count > 0 THEN 1 ELSE 0 END) as online_attended"),
+                \Illuminate\Support\Facades\DB::raw("SUM(CASE WHEN visitor_source = 'onsite' THEN 1 ELSE 0 END) as onsite_count"),
+                \Illuminate\Support\Facades\DB::raw("SUM(CASE WHEN visitor_source = 'self-service' THEN 1 ELSE 0 END) as self_service_count")
+            )
+            ->whereNotNull(\Illuminate\Support\Facades\DB::raw("CASE WHEN visitor_source = 'online' THEN print_date ELSE created_at END"))
+            ->groupBy('activity_date')
+            ->orderBy('activity_date')
+            ->get()
+            ->keyBy('activity_date');
+
+        // 3. Merge and pad daily stats for the event duration
+        $paddedDailyStats = [];
+        if ($event->start_date && $event->end_date) {
+            $period = \Carbon\CarbonPeriod::create(
+                \Carbon\Carbon::parse($event->start_date),
+                \Carbon\Carbon::parse($event->end_date)
+            );
+            foreach ($period as $date) {
+                $dateString = $date->format('Y-m-d');
+                $src = $dailySourceBreakdown[$dateString] ?? null;
+                $stats = $dailyStatsDB[$dateString] ?? null;
+
+                $paddedDailyStats[] = [
+                    'scan_date'        => $dateString,
+                    'unique_count'     => $stats ? $stats->unique_count : 0,
+                    'raw_count'        => $stats ? $stats->raw_count : 0,
+                    'online_attended'  => $src ? (int)$src->online_attended : 0,
+                    'onsite_count'     => $src ? (int)$src->onsite_count : 0,
+                    'self_service_count' => $src ? (int)$src->self_service_count : 0,
+                ];
+            }
+        } else {
+             // Fallback if no dates set
+             foreach ($dailyStatsDB as $date => $stats) {
+                 $src = $dailySourceBreakdown[$date] ?? null;
+                 $paddedDailyStats[] = [
+                    'scan_date'        => $date,
+                    'unique_count'     => $stats->unique_count,
+                    'raw_count'        => $stats->raw_count,
+                    'online_attended'  => $src ? (int)$src->online_attended : 0,
+                    'onsite_count'     => $src ? (int)$src->onsite_count : 0,
+                    'self_service_count' => $src ? (int)$src->self_service_count : 0,
+                 ];
+             }
+        }
+
+        $totalAttendance = collect($paddedDailyStats)->sum('unique_count');
+
+        // 4. Visit Frequency (How many people visited for 1 day, 2 days, etc.)
+        $frequencyData = $event->scans()
+            ->select('barcode', \Illuminate\Support\Facades\DB::raw('COUNT(DISTINCT DATE(timestamp)) as days_visited'))
+            ->groupBy('barcode')
+            ->get();
+
+        $frequencyMap = [
+            '1' => $frequencyData->where('days_visited', 1)->count(),
+            '2' => $frequencyData->where('days_visited', 2)->count(),
+            '3' => $frequencyData->where('days_visited', 3)->count(),
+            '4' => $frequencyData->where('days_visited', '>=', 4)->count(),
+        ];
+
+        // Total source-based counts
+        $onlineAttendedCount = $event->visitors()
+            ->where('visitor_source', 'online')
+            ->where('print_count', '>', 0)
+            ->count();
+
+        $onsiteCount = $event->visitors()
+            ->where('visitor_source', 'onsite')
+            ->count();
+
+        $selfServiceCount = $event->visitors()
+            ->where('visitor_source', 'self-service')
+            ->count();
+
+        $kioskPrintCount = $event->visitors()
+            ->whereHas('printer', function ($q) {
+                $q->where('role_id', 4); // self_service_device role
+            })
+            ->count();
+
+        return response()->json([
+            'id'                   => $event->id,
+            'name'                 => $event->name,
+            'registered_count'     => $event->visitors_count,
+            'target_visitors'      => $event->target_visitors,
+            'status'               => $event->status,
+            'start_date'           => $event->start_date,
+            'end_date'             => $event->end_date,
+            'daily_stats'          => $paddedDailyStats,
+            'total_attendance'     => $totalAttendance,
+            'unique_visitors_count' => $frequencyData->count(),
+            'online_attended'      => $onlineAttendedCount,
+            'onsite_count'         => $onsiteCount,
+            'self_service_count'   => $selfServiceCount,
+            'kiosk_print_count'    => $kioskPrintCount,
+            'visit_frequency'      => $frequencyMap,
+        ]);
+    }
 }

@@ -129,7 +129,18 @@ const DataExport = () => {
           }
       });
 
-      if (!r.ok) throw new Error('Export failed');
+      if (!r.ok) {
+        let errorMsg = 'Export failed';
+        try {
+          const errorData = await r.json();
+          errorMsg = errorData.message || errorMsg;
+        } catch (e) {
+          try {
+            errorMsg = await r.text() || errorMsg;
+          } catch (e2) {}
+        }
+        throw new Error(errorMsg);
+      }
 
       const blob = await r.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
@@ -141,7 +152,7 @@ const DataExport = () => {
       a.remove();
     } catch (err) {
       console.error(err);
-      alert('Failed to download file.');
+      alert(`Failed to download file: ${err.message}`);
     } finally {
       setDownloading(false);
     }

@@ -7,6 +7,7 @@ use App\Models\MediaAgent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 class MediaAgentController extends Controller
 {
@@ -18,7 +19,8 @@ class MediaAgentController extends Controller
         $q = $request->query('q', '');
         if (strlen($q) < 1) return response()->json([]);
 
-        $agents = $event->mediaAgents()
+        // Search globally across all events to allow reusing media agent data
+        $agents = MediaAgent::with('event:id,name')
             ->where(function ($query) use ($q) {
                 $query->where('first_name', 'like', "%{$q}%")
                       ->orWhere('last_name', 'like', "%{$q}%")
@@ -66,13 +68,22 @@ class MediaAgentController extends Controller
             'print_count'  => 'nullable|integer',
         ]);
 
-
         $validated['event_id'] = $event->id;
         
-        // Auto-generate a badgeID for internal tracking
-        $validated['badgeID'] = $this->generateNextBadgeId($event);
+        $maxRetries = 3;
+        $agent = null;
 
-        $agent = MediaAgent::create($validated);
+        for ($i = 0; $i < $maxRetries; $i++) {
+            try {
+                // Auto-generate a badgeID for internal tracking (globally unique)
+                $validated['badgeID'] = $this->generateNextBadgeId($event);
+                $agent = MediaAgent::create($validated);
+                break;
+            } catch (UniqueConstraintViolationException $e) {
+                if ($i === $maxRetries - 1) throw $e;
+                usleep(50000); // 50ms
+            }
+        }
 
         return response()->json($agent, 201);
     }
@@ -109,8 +120,8 @@ class MediaAgentController extends Controller
     {
         // We use a "MED-" prefix for media agents to distinguish them
         $prefix = 'MED-';
-        $last = MediaAgent::where('event_id', $event->id)
-            ->where('badgeID', 'like', $prefix . '%')
+        // We query globally across all events because badgeID has a unique constraint in the table
+        $last = MediaAgent::where('badgeID', 'like', $prefix . '%')
             ->orderByRaw('CAST(SUBSTRING(badgeID, 5) AS UNSIGNED) DESC')
             ->value('badgeID');
 

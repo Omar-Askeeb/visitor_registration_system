@@ -58,6 +58,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/pre-print-history', [PrePrintHistoryController::class, 'index']);
     Route::post('/pre-print-history', [PrePrintHistoryController::class, 'store']);
     Route::apiResource('events', EventController::class)->only(['index', 'show']);
+    Route::get('/events/{event}/insights', [EventController::class, 'insights']);
     Route::post('/sync/pulse', [SyncController::class, 'pulse']);
     Route::post('/events/{event}/sync', [SyncController::class, 'sync']);
     Route::get('/events/{event}/sync-logs', [SyncController::class, 'index']);
@@ -89,6 +90,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/next-badge-id', [VisitorController::class, 'nextBadgeId']);
             Route::get('/unsynced-count', [VisitorController::class, 'unsyncedCount']);
             Route::post('/resync-external', [VisitorController::class, 'resyncExternal']);
+            Route::post('/skip-external',   [VisitorController::class, 'skipExternalSync']);
         });
 
         // Admin, Data Entry, Auditor
