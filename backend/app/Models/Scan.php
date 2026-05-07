@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Scan extends Model
 {
+    const UPDATED_AT = null;
+
     protected $fillable = [
         'barcode',
         'timestamp',

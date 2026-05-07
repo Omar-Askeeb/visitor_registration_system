@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  X, 
-  Users, 
-  CalendarDays, 
-  TrendingUp, 
-  UserCheck, 
-  Repeat, 
+import {
+  X,
+  Users,
+  CalendarDays,
+  TrendingUp,
+  UserCheck,
+  Repeat,
   Activity,
   FileText,
   Loader2,
@@ -38,6 +38,8 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
   const [realMissingCount, setRealMissingCount] = useState(null);
   const [fullEvent, setFullEvent] = useState(event);
   const [fetchingFull, setFetchingFull] = useState(!event.daily_stats);
+  const [cleanedDays, setCleanedDays] = useState([]);
+  const [integrityError, setIntegrityError] = useState(false);
 
   useEffect(() => {
     if (!event.daily_stats && event.id) {
@@ -45,11 +47,11 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
       fetch(`${API_BASE}/events/${event.id}/insights`, {
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Accept': 'application/json' }
       })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data) setFullEvent(data);
-      })
-      .finally(() => setFetchingFull(false));
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data) setFullEvent(data);
+        })
+        .finally(() => setFetchingFull(false));
     } else {
       setFullEvent(event);
       setFetchingFull(false);
@@ -60,12 +62,20 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
 
   useEffect(() => {
     if (displayEvent?.id) {
-       fetch(`${API_BASE}/events/${displayEvent.id}/missing-scans`, {
-         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Accept': 'application/json' }
-       })
-       .then(r => r.ok ? r.json() : [])
-       .then(d => setRealMissingCount(d.length))
-       .catch(() => setRealMissingCount(0));
+      setIntegrityError(false);
+      fetch(`${API_BASE}/events/${displayEvent.id}/missing-scans`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}`, 'Accept': 'application/json' }
+      })
+        .then(r => {
+          if (!r.ok) throw new Error('Failed to fetch missing scans');
+          return r.json();
+        })
+        .then(d => setRealMissingCount(d.length))
+        .catch(err => {
+          console.error(err);
+          setIntegrityError(true);
+          setRealMissingCount(null);
+        });
     }
   }, [displayEvent?.id]);
 
@@ -74,21 +84,21 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
         <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={onClose} />
         <div className="relative w-full max-w-4xl bg-white dark:bg-[#0c1325] rounded-[32px] overflow-hidden shadow-2xl border border-white/10 p-12 flex flex-col items-center justify-center space-y-4 text-center">
-           <Loader2 className="h-10 w-10 text-cyan-500 animate-spin" />
-           <p className="text-xs font-black uppercase tracking-widest text-slate-400 animate-pulse leading-loose">
-             Loading Detailed Statistics...<br/>
-             <span className="text-[10px] opacity-50">Fetching visitor data, daily scans, and source breakdowns</span>
-           </p>
+          <Loader2 className="h-10 w-10 text-cyan-500 animate-spin" />
+          <p className="text-xs font-black uppercase tracking-widest text-slate-400 animate-pulse leading-loose">
+            Loading Detailed Statistics...<br />
+            <span className="text-[10px] opacity-50">Fetching visitor data, daily scans, and source breakdowns</span>
+          </p>
         </div>
       </div>
     );
   }
 
   const attendanceRate = Math.round(((displayEvent.total_attendance || 0) / (displayEvent.registered_count || 1)) * 100);
-  const targetRate    = Math.round(((displayEvent.registered_count || 0) / (displayEvent.target_visitors || 1)) * 100);
+  const targetRate = Math.round(((displayEvent.registered_count || 0) / (displayEvent.target_visitors || 1)) * 100);
 
-  const onlineAttended   = displayEvent.online_attended    ?? 0;
-  const onsiteCount      = displayEvent.onsite_count       ?? 0;
+  const onlineAttended = displayEvent.online_attended ?? 0;
+  const onsiteCount = displayEvent.onsite_count ?? 0;
   const selfServiceCount = displayEvent.self_service_count ?? 0;
 
   const handleCleanDay = async (scanDate) => {
@@ -103,8 +113,11 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
         },
         body: JSON.stringify({ scan_date: scanDate })
       });
-      if (res.ok && onRefresh) await onRefresh();
-    } catch(e) {
+      if (res.ok) {
+        setCleanedDays(prev => [...prev, scanDate]);
+        if (onRefresh) await onRefresh();
+      }
+    } catch (e) {
       console.error(e);
     } finally {
       setCleaningDate(null);
@@ -141,13 +154,14 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Accept': 'application/json'
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           visitor_ids: missingScans.map(v => v.id),
           flag: fixFlag
         })
       });
       if (res.ok) {
         setMissingScans([]);
+        setRealMissingCount(0);
         if (onRefresh) await onRefresh();
       }
     } catch (e) {
@@ -267,7 +281,7 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
                       <div key={num} className={`p-4 rounded-2xl border ${bgColor} ${borderColor} flex flex-col items-center justify-center text-center space-y-1`}>
                         <div className={`text-2xl font-black italic tabular-nums ${color}`}>{count.toLocaleString()}</div>
                         <div className="text-[9px] font-black uppercase tracking-tighter text-slate-500 leading-none">{label}</div>
-                        <div className="text-[8px] font-bold text-slate-400 opacity-60">({percent}% of unique visitors)</div>
+                        <div className="text-[8px] font-bold text-slate-400 opacity-60">({percent}% of unique visits)</div>
                       </div>
                     );
                   })}
@@ -373,7 +387,7 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
                   <div className="text-right">
                     <div className="text-3xl font-black text-cyan-400 italic tabular-nums">{(displayEvent.kiosk_print_count || 0).toLocaleString()}</div>
                     <div className="text-[9px] font-black text-slate-500 uppercase tracking-tight">
-                       Source: System Role ID 4
+                      Source: System Role ID 4
                     </div>
                   </div>
                 </div>
@@ -408,28 +422,27 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
                 </div>
               ) : (
                 displayEvent.daily_stats.map((day, i) => {
-                  const hasDuplicates   = day.raw_count > day.unique_count;
+                  const isCleanedLocally = cleanedDays.includes(day.scan_date);
+                  const hasDuplicates = (day.raw_count > day.unique_count) && !isCleanedLocally;
                   const duplicatesCount = day.raw_count - day.unique_count;
-                  const isCleaningThis  = cleaningDate === day.scan_date;
-                  const dayOnline       = day.online_attended  ?? 0;
-                  const dayOnsite       = day.onsite_count     ?? 0;
-                  const daySelf         = day.self_service_count ?? 0;
+                  const isCleaningThis = cleaningDate === day.scan_date;
+                  const dayOnline = day.online_attended ?? 0;
+                  const dayOnsite = day.onsite_count ?? 0;
+                  const daySelf = day.self_service_count ?? 0;
 
                   return (
                     <div
                       key={i}
-                      className={`grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] items-center gap-x-4 p-4 bg-white dark:bg-slate-800/40 rounded-2xl border ${
-                        hasDuplicates
+                      className={`grid grid-cols-[auto_1fr_auto_auto_auto_auto_auto] items-center gap-x-4 p-4 bg-white dark:bg-slate-800/40 rounded-2xl border ${hasDuplicates
                           ? 'border-orange-500/30 dark:border-orange-500/20 shadow-[0_0_15px_-3px_rgba(249,115,22,0.15)]'
                           : 'border-slate-200 dark:border-slate-700/30'
-                      } hover:-translate-y-0.5 transition-all group`}
+                        } hover:-translate-y-0.5 transition-all group`}
                     >
                       {/* Day number */}
-                      <div className={`h-9 w-9 flex items-center justify-center rounded-xl text-xs font-black shrink-0 ${
-                        hasDuplicates
+                      <div className={`h-9 w-9 flex items-center justify-center rounded-xl text-xs font-black shrink-0 ${hasDuplicates
                           ? 'bg-orange-100 text-orange-600 dark:bg-orange-500/20 dark:text-orange-400'
                           : 'bg-slate-100 dark:bg-slate-700 text-slate-500'
-                      }`}>
+                        }`}>
                         {i + 1}
                       </div>
 
@@ -443,7 +456,7 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
 
                       {/* Scan unique count */}
                       <div className="text-right">
-                        <div className="text-[8px] font-black text-cyan-500 uppercase tracking-widest mb-0.5">Unique Visitors</div>
+                        <div className="text-[8px] font-black text-cyan-500 uppercase tracking-widest mb-0.5">Unique Visits</div>
                         <div className="text-lg font-black text-slate-900 dark:text-white tabular-nums italic group-hover:text-cyan-500 transition-colors">
                           {day.unique_count.toLocaleString()}
                         </div>
@@ -502,7 +515,7 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
                   );
                 })
               )}
-              
+
               {/* Table Footer / Totals Row */}
               {displayEvent.daily_stats?.length > 0 && (
                 <div className="space-y-4">
@@ -546,111 +559,145 @@ const EventInsightsModal = ({ event, onClose, onRefresh }) => {
                     </div>
                   </div>
 
-                  {/* Data Integrity Warning & Fix */}
-                  {(() => {
-                    const diff = realMissingCount ?? 0;
+              </div>
+            )}
 
-                    if (diff > 0 || missingScans?.length > 0) {
-                      return (
-                        <div className="p-6 bg-amber-500/10 border border-amber-500/20 rounded-[28px] flex flex-col md:flex-row items-center justify-between gap-4">
-                           <div className="flex items-center gap-4">
-                              <div className="h-12 w-12 rounded-2xl bg-amber-500/20 flex items-center justify-center text-amber-500">
-                                 <AlertCircle className="h-6 w-6" />
-                              </div>
-                              <div>
-                                 <h5 className="text-sm font-black text-amber-500 uppercase tracking-tight">Data Integrity Warning</h5>
-                                 <p className="text-[10px] text-slate-500 font-medium">Found {diff} records that were printed/registered but never scanned at gates.</p>
-                              </div>
-                           </div>
-                           
-                           <div className="flex items-center gap-2">
-                              {!missingScans && (
-                                <button 
-                                  onClick={loadMissingScans}
-                                  disabled={loadingMissing}
-                                  className="px-6 py-3 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 transition-all flex items-center gap-2"
-                                >
-                                  {loadingMissing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <TrendingUp className="h-3.5 w-3.5" />}
-                                  Analyze Discrepancy
-                                </button>
-                              )}
-
-                              {missingScans && missingScans.length > 0 && (
-                                <div className="flex flex-col gap-2 w-full md:w-auto">
-                                   <div className="max-h-60 overflow-y-auto bg-white dark:bg-slate-950/40 rounded-xl border border-amber-500/20 overflow-hidden mb-2">
-                                      <table className="w-full text-left text-[9px] font-mono">
-                                         <thead className="bg-amber-500/10 text-amber-600 dark:text-amber-500">
-                                            <tr>
-                                               <th className="px-3 py-2 uppercase tracking-widest font-black">Visitor</th>
-                                               <th className="px-3 py-2 uppercase tracking-widest font-black">Badge ID</th>
-                                               <th className="px-3 py-2 uppercase tracking-widest font-black">Target Flag</th>
-                                            </tr>
-                                         </thead>
-                                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                            {missingScans.map(v => (
-                                              <tr key={v.id} className="hover:bg-amber-500/5 transition-colors">
-                                                 <td className="px-3 py-2 text-slate-600 dark:text-slate-400 font-bold">{v.visitorName} {v.surName}</td>
-                                                 <td className="px-3 py-2 text-amber-500 font-black">{v.badgeID}</td>
-                                                 <td className="px-3 py-2">
-                                                    <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded border border-slate-200 dark:border-slate-700">
-                                                       {fixFlag || 'None'}
-                                                    </span>
-                                                 </td>
-                                              </tr>
-                                            ))}
-                                         </tbody>
-                                      </table>
-                                   </div>
-                                   
-                                   <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-4 mb-2">
-                                      <div className="flex items-center justify-between mb-3">
-                                         <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Specify Scan Flag</span>
-                                         <div className="flex gap-2">
-                                            {['System', 'Recovered', 'Manual'].map(tag => (
-                                               <button 
-                                                  key={tag}
-                                                  onClick={() => setFixFlag(tag)}
-                                                  className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter transition-all ${fixFlag === tag ? 'bg-amber-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-400 hover:text-amber-500 border border-slate-200 dark:border-slate-700'}`}
-                                               >
-                                                  {tag}
-                                               </button>
-                                            ))}
-                                         </div>
-                                      </div>
-                                      <div className="relative">
-                                        <input 
-                                          type="text"
-                                          placeholder="Type custom tag or choose above..."
-                                          value={fixFlag}
-                                          onChange={(e) => setFixFlag(e.target.value)}
-                                          className="w-full bg-white dark:bg-slate-900 border border-amber-500/20 rounded-xl px-4 py-3 text-[10px] font-bold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500/50 transition-all"
-                                        />
-                                      </div>
-                                   </div>
-                                   <button 
-                                      onClick={handleFixMissing}
-                                      disabled={fixingMissing}
-                                      className="px-6 py-4 bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-emerald-600 transition-all flex items-center gap-2 justify-center shadow-lg shadow-emerald-500/20 group"
-                                   >
-                                      {fixingMissing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-4 w-4 group-hover:scale-110 transition-transform" />}
-                                      Finalize & Recover {missingScans.length} Scans
-                                   </button>
-                                </div>
-                              )}
-
-                              {missingScans && missingScans.length === 0 && (
-                                <div className="text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-2">
-                                   <ShieldCheck className="h-4 w-4" /> All Clear!
-                                </div>
-                              )}
-                           </div>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
+            {/* Data Integrity Warning & Fix (Visible even if no scans yet) */}
+            {/* Data Integrity Warning & Fix */}
+            <div className="mt-8">
+              <div className={`p-6 border rounded-[28px] flex flex-col md:flex-row items-center justify-between gap-4 transition-all duration-500 ${
+                integrityError ? 'bg-red-500/10 border-red-500/20' : 
+                realMissingCount === null ? 'bg-slate-500/5 border-slate-500/10 animate-pulse' :
+                realMissingCount > 0 ? 'bg-amber-500/10 border-amber-500/20' : 
+                'bg-emerald-500/10 border-emerald-500/20'
+              }`}>
+                <div className="flex items-center gap-4">
+                  <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${
+                    integrityError ? 'bg-red-500/20 text-red-500' :
+                    realMissingCount === null ? 'bg-slate-500/20 text-slate-400' :
+                    realMissingCount > 0 ? 'bg-amber-500/20 text-amber-500' : 
+                    'bg-emerald-500/20 text-emerald-500'
+                  }`}>
+                    {integrityError ? <AlertCircle className="h-6 w-6" /> : 
+                     realMissingCount === null ? <Loader2 className="h-6 w-6 animate-spin" /> :
+                     realMissingCount > 0 ? <AlertCircle className="h-6 w-6" /> : 
+                     <ShieldCheck className="h-6 w-6" />}
+                  </div>
+                  <div>
+                    <h5 className={`text-sm font-black uppercase tracking-tight ${
+                      integrityError ? 'text-red-500' :
+                      realMissingCount === null ? 'text-slate-400' :
+                      realMissingCount > 0 ? 'text-amber-500' : 
+                      'text-emerald-500'
+                    }`}>
+                      {integrityError ? 'Integrity Check Failed' :
+                       realMissingCount === null ? 'Analyzing Integrity...' :
+                       realMissingCount > 0 ? 'Data Integrity Warning' : 
+                       'Data Integrity: All Clear'}
+                    </h5>
+                    <p className="text-[10px] text-slate-500 font-medium">
+                      {integrityError ? 'There was a problem communicating with the analytics engine. Please try again later.' :
+                       realMissingCount === null ? 'Scanning database for discrepancies between badge prints and gate entries.' :
+                       realMissingCount > 0 
+                        ? `Found ${realMissingCount} records that were printed/registered but never scanned at gates.`
+                        : 'All printed badges have been accounted for in the scan system.'
+                      }
+                    </p>
+                  </div>
                 </div>
-              )}
+
+                <div className="flex items-center gap-2">
+                  {integrityError && (
+                    <button
+                      onClick={() => setFetchingFull(true)} // Trigger a re-fetch of full event which will trigger the check
+                      className="px-6 py-3 bg-red-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 transition-all"
+                    >
+                      Retry Analysis
+                    </button>
+                  )}
+
+                  {realMissingCount > 0 && !missingScans && (
+                    <button
+                      onClick={loadMissingScans}
+                      disabled={loadingMissing}
+                      className="px-6 py-3 bg-amber-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-600 transition-all flex items-center gap-2"
+                    >
+                      {loadingMissing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <TrendingUp className="h-3.5 w-3.5" />}
+                      Analyze Discrepancy
+                    </button>
+                  )}
+
+                  {missingScans && missingScans.length > 0 && (
+                    <div className="flex flex-col gap-2 w-full md:w-auto">
+                      <div className="max-h-60 overflow-y-auto bg-white dark:bg-slate-950/40 rounded-xl border border-amber-500/20 overflow-hidden mb-2">
+                        <table className="w-full text-left text-[9px] font-mono">
+                          <thead className="bg-amber-500/10 text-amber-600 dark:text-amber-500">
+                            <tr>
+                              <th className="px-3 py-2 uppercase tracking-widest font-black">Visitor</th>
+                              <th className="px-3 py-2 uppercase tracking-widest font-black">Badge ID</th>
+                              <th className="px-3 py-2 uppercase tracking-widest font-black">Target Flag</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                            {missingScans.map(v => (
+                              <tr key={v.id} className="hover:bg-amber-500/5 transition-colors">
+                                <td className="px-3 py-2 text-slate-600 dark:text-slate-400 font-bold">{v.visitorName} {v.surName}</td>
+                                <td className="px-3 py-2 text-amber-500 font-black">{v.badgeID}</td>
+                                <td className="px-3 py-2">
+                                  <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded border border-slate-200 dark:border-slate-700">
+                                    {fixFlag || 'None'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-4 mb-2">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">Specify Scan Flag</span>
+                          <div className="flex gap-2">
+                            {['System', 'Recovered', 'Manual'].map(tag => (
+                              <button
+                                key={tag}
+                                onClick={() => setFixFlag(tag)}
+                                className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter transition-all ${fixFlag === tag ? 'bg-amber-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-400 hover:text-amber-500 border border-slate-200 dark:border-slate-700'}`}
+                              >
+                                {tag}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="Type custom tag or choose above..."
+                            value={fixFlag}
+                            onChange={(e) => setFixFlag(e.target.value)}
+                            className="w-full bg-white dark:bg-slate-900 border border-amber-500/20 rounded-xl px-4 py-3 text-[10px] font-bold text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500/50 transition-all"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleFixMissing}
+                        disabled={fixingMissing}
+                        className="px-6 py-4 bg-emerald-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-emerald-600 transition-all flex items-center gap-2 justify-center shadow-lg shadow-emerald-500/20 group"
+                      >
+                        {fixingMissing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-4 w-4 group-hover:scale-110 transition-transform" />}
+                        Finalize & Recover {missingScans.length} Scans
+                      </button>
+                    </div>
+                  )}
+
+                  {missingScans && missingScans.length === 0 && realMissingCount > 0 && (
+                    <div className="text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-2">
+                      <ShieldCheck className="h-4 w-4" /> All Clear!
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
             </div>
           </div>
 

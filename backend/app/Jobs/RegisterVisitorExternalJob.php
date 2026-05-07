@@ -154,10 +154,13 @@ class RegisterVisitorExternalJob implements ShouldQueue
                     'external_sync_error'  => "HTTP {$response->status()}: {$errorMsg}",
                 ]);
 
+                // Truncate message for activity log to ensure it fits in the database
+                $logMsg = mb_substr($errorMsg, 0, 500);
+
                 ActivityLog::create([
                     'user_id'     => $this->visitor->creator_id,
                     'action'      => 'external_crm_sync',
-                    'description' => "❌ CRM Sync Failed: [{$this->visitor->formID}] HTTP {$response->status()} — {$errorMsg}",
+                    'description' => "❌ CRM Sync Failed: [{$this->visitor->formID}] HTTP {$response->status()} — {$logMsg}",
                     'ip_address'  => '127.0.0.1',
                 ]);
 
@@ -190,10 +193,12 @@ class RegisterVisitorExternalJob implements ShouldQueue
             'external_sync_error'  => "All retries exhausted: {$errorMsg}",
         ]);
 
+        $logMsg = mb_substr($errorMsg, 0, 500);
+
         ActivityLog::create([
             'user_id'     => $this->visitor->creator_id,
             'action'      => 'external_crm_sync',
-            'description' => "❌ CRM Sync Failed (Final): [{$this->visitor->formID}] — {$errorMsg}",
+            'description' => "❌ CRM Sync Failed (Final): [{$this->visitor->formID}] — {$logMsg}",
             'ip_address'  => '127.0.0.1',
         ]);
 

@@ -352,7 +352,7 @@ class EventController extends Controller
     {
         $event->loadCount('visitors');
 
-        // 1. Unique visitors per day based on Scans
+        // 1. Unique visits per day based on Scans
         $dailyStatsDB = $event->scans()
             ->select(
                 \Illuminate\Support\Facades\DB::raw('DATE(timestamp) as scan_date'),
@@ -473,16 +473,23 @@ class EventController extends Controller
      */
     public function getMissingScans(Event $event): JsonResponse
     {
+        $prefix = \Illuminate\Support\Facades\DB::getTablePrefix();
+        $visitorTableBase = (new \App\Models\Visitor)->getTable();
+        $scanTableBase = (new \App\Models\Scan)->getTable();
+        
+        $vTablePrefixed = $prefix . $visitorTableBase;
+        $sTablePrefixed = $prefix . $scanTableBase;
+
         $missing = $event->visitors()
             ->where('print_count', '>', 0)
             ->whereNotNull('print_date')
             ->whereNotNull('badgeID')
             ->where('badgeID', '!=', '')
-            ->whereNotExists(function ($query) use ($event) {
+            ->whereNotExists(function ($query) use ($event, $scanTableBase, $vTablePrefixed, $sTablePrefixed) {
                 $query->select(\Illuminate\Support\Facades\DB::raw(1))
-                    ->from('scans')
-                    ->whereColumn('scans.barcode', 'visitors.badgeID')
-                    ->where('scans.event_id', $event->id);
+                    ->from($scanTableBase)
+                    ->whereRaw("TRIM({$sTablePrefixed}.barcode) = TRIM({$vTablePrefixed}.badgeID)")
+                    ->where("{$scanTableBase}.event_id", $event->id);
             })
             ->get(['id', 'badgeID', 'visitorName', 'surName', 'print_date', 'created_at']);
 

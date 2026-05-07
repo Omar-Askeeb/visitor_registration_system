@@ -822,8 +822,8 @@ const EventCard = ({ event, onEdit, onDelete, onInsights, isReadOnly, onNotify }
             <span>Edit</span>
           </button>
 
-          {/* CRM Resync button — only for non-training events */}
-          {!event.is_training && (
+          {/* CRM Resync button — only for non-training events and enabled push sync */}
+          {!event.is_training && event.sync_push_enabled && (
             <button
               onClick={handleResync}
               disabled={resyncing || unsyncedCount === 0}

@@ -25,9 +25,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::put('/profile', [AuthController::class, 'updateProfile']);
 
+    // Dashboard
+    Route::middleware('permission:view_dashboard')->group(function () {
+        Route::get('/dashboard', [DashboardController::class, 'index']);
+    });
+
     // Admin Only
     Route::middleware('role:admin')->group(function () {
-        Route::get('/dashboard', [DashboardController::class, 'index']);
         Route::apiResource('users', UserController::class)->except(['index', 'show']);
         Route::post('/users/bulk', [UserController::class, 'bulkImport']);
         Route::get('/roles/permissions', [\App\Http\Controllers\RoleController::class, 'permissions']);
@@ -78,15 +82,15 @@ Route::middleware('auth:sanctum')->group(function () {
     // --- Visitor routes ---
     Route::prefix('events/{event}/visitors')->group(function () {
         
-        // Admin & Auditor
-        Route::middleware('role:admin,auditor')->group(function () {
+        // Auditor & Admin (Audit access)
+        Route::middleware('permission:audit_records')->group(function () {
             Route::get('/', [VisitorController::class, 'index']);
             Route::post('/batch-verify', [VisitorController::class, 'batchVerify']);
             Route::post('/{visitor}/verify', [VisitorController::class, 'verify']);
         });
 
-        // Admin & Data Entry
-        Route::middleware('role:admin,data_entry')->group(function () {
+        // Data Entry & Admin (Registration access)
+        Route::middleware('permission:register_visitors')->group(function () {
             Route::post('/', [VisitorController::class, 'store']);
             Route::post('/training-records', [TrainingRecordController::class, 'store']);
             Route::get('/next-badge-id', [VisitorController::class, 'nextBadgeId']);
@@ -95,8 +99,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/skip-external',   [VisitorController::class, 'skipExternalSync']);
         });
 
-        // Admin, Data Entry, Auditor
-        Route::middleware('role:admin,data_entry,auditor')->group(function () {
+        // Update & View details access
+        Route::middleware('permission:register_visitors,audit_records')->group(function () {
             Route::get('/check-form-id', [VisitorController::class, 'checkFormId']);
             Route::get('/search', [VisitorController::class, 'search']);
             Route::get('/{visitor}', [VisitorController::class, 'show']);
@@ -110,7 +114,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // --- Media Agent routes ---
     Route::prefix('events/{event}/media-agents')->group(function () {
-        Route::middleware('role:admin,data_entry')->group(function () {
+        Route::middleware('permission:register_media')->group(function () {
             Route::post('/', [MediaAgentController::class, 'store']);
             Route::get('/search', [MediaAgentController::class, 'search']);
             Route::put('/{media_agent}', [MediaAgentController::class, 'update']);

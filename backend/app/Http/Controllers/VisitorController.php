@@ -340,6 +340,11 @@ class VisitorController extends Controller
      */
     public function unsyncedCount(Event $event): JsonResponse
     {
+        // If push sync is disabled for this event, the count should be 0 to avoid confusing badges
+        if (!$event->sync_push_enabled) {
+            return response()->json(['count' => 0]);
+        }
+
         $count = $event->visitors()
             ->whereNull('onlineRegID')
             ->where(function ($q) {
